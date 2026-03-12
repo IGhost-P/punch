@@ -112,12 +112,12 @@ If nothing is found, setup **auto-registers** the MCP servers:
   Jira     [-] 이미 존재 (mcp-atlassian)
 ```
 
-| Source                | GitLab | Jira | npx needed? |
-|-----------------------|--------|------|-------------|
-| Cursor MCP settings   | ✓      | ✓    | Depends     |
-| Claude Code MCP       | ✓      | ✓    | Depends     |
-| IDE plugins           | ✓      | —    | No          |
-| Cursor Confluence MCP | —      | ✓    | No          |
+| Source                | GitLab | Jira | Runtime |
+|-----------------------|--------|------|---------|
+| Punch auto-install    | ✓      | ✓    | uvx     |
+| Cursor MCP settings   | ✓      | ✓    | uvx     |
+| Claude Code MCP       | ✓      | ✓    | uvx     |
+| Existing IDE plugins  | ✓      | ✓    | varies  |
 
 ---
 
@@ -311,11 +311,11 @@ punch/
     └── help/                Command reference
 ```
 
-**Why no bundled MCP?**
+**Why uvx, not npx?**
 
-Plugins like Ouroboros use `uvx` (Python) — no permission issues. But GitLab/Jira MCP servers use `npx` (Node.js), which hits `npm EACCES` errors when `~/.npm` has root-owned files.
+`npx` (Node.js) frequently fails with `npm EACCES` permission errors when `~/.npm` has root-owned files — a common issue on managed machines.
 
-Punch avoids this entirely: it detects tools already in your environment. No `npx`, no npm cache, no permission errors. If you already have GitLab/Jira tools from Cursor or other plugins, Punch just works.
+Punch uses `uvx` (Python/uv) for all MCP servers, just like Ouroboros. No npm cache, no permission errors. The `plugin.json` declares `mcpServers` with `uvx mcp-gitlab` and `uvx mcp-atlassian` — both are auto-registered when the plugin is installed in Claude Code. For Cursor, `/punch:setup` writes directly to `~/.cursor/mcp.json`.
 
 ---
 

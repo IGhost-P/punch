@@ -21,9 +21,9 @@ Guided onboarding that connects your GitLab and Jira accounts.
 
 ## Design Principle
 
-**Detect first, install only if needed.**
+**Detect first, install only if needed. Always use `uvx`, never `npx`.**
 
-Punch doesn't bundle MCP servers. It uses whatever GitLab/Jira tools are already available — from Cursor MCP, Claude Code MCP, IDE plugins, or any source. If nothing exists, it guides installation.
+Punch declares MCP servers in `plugin.json` for auto-registration in Claude Code. For Cursor, it detects existing tools or writes directly to `~/.cursor/mcp.json`. All servers use `uvx` (Python) to avoid npm/npx EACCES permission issues. If tools are already available from any source (Cursor MCP, Claude Code MCP, IDE plugins), Punch reuses them.
 
 ---
 
@@ -249,26 +249,30 @@ Ask the user:
 
 **This is the critical step. The agent MUST directly modify the config file, not just show instructions.**
 
+**ALL servers use `uvx` (Python). NEVER use `npx` — it has widespread EACCES permission issues.**
+
 **For Cursor (`~/.cursor/mcp.json`):**
 
 1. Read the existing `~/.cursor/mcp.json` file
 2. Parse the JSON
 3. Add the missing server(s) to `mcpServers`:
 
+GitLab (uses `mcp-gitlab` PyPI package):
+
 ```json
 {
   "gitlab": {
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-gitlab"],
+    "command": "uvx",
+    "args": ["mcp-gitlab"],
     "env": {
-      "GITLAB_PERSONAL_ACCESS_TOKEN": "<collected-token>",
-      "GITLAB_API_URL": "<collected-url>/api/v4"
+      "GITLAB_URL": "<collected-url>",
+      "GITLAB_TOKEN": "<collected-token>"
     }
   }
 }
 ```
 
-For Jira (if missing — check if `mcp-atlassian` or similar already exists):
+Jira (uses `mcp-atlassian` PyPI package — check if it already exists under keys like `Confluence`, `jira`, `atlassian`):
 
 ```json
 {
@@ -288,12 +292,13 @@ For Jira (if missing — check if `mcp-atlassian` or similar already exists):
 
 **For Claude Code (`~/.claude/mcp.json`):**
 
-Same approach — read, merge, write.
+Same approach — read, merge, write. Use identical `uvx` commands.
 
 **IMPORTANT RULES:**
 - NEVER overwrite existing servers
 - NEVER remove other MCP servers from the config
-- ALWAYS use `Read` tool to get current file, `JSON.parse`, add new keys, then `Write` tool
+- NEVER use `npx` — always use `uvx` to avoid npm permission issues
+- ALWAYS use `Read` tool to get current file, parse JSON, add new keys, then `Write` tool
 - If file doesn't exist, create it with `{ "mcpServers": { ... } }`
 
 #### 2e: Show Result
@@ -425,32 +430,29 @@ Make test calls to each tool.
   Jira API     [✓] OK        company.atlassian.net
 ```
 
-**Check 3: npx health (only if npx-based MCP servers detected)**
+**Check 3: uvx health**
 
 ```bash
-npx -y --version 2>&1
-ls -la ~/.npm/_cacache/ 2>&1 | head -5
-npm ping 2>&1
+uvx --version 2>&1
+python3 --version 2>&1
 ```
 
 ```
-  npx Health (Claude Code MCP uses npx):
-  Node.js       [✓] v20.11.0
-  npx           [✓] available
-  npm cache     [✗] EACCES
-  npm registry  [✓] reachable
+  Runtime Health:
+  Python        [✓] v3.12.0
+  uvx           [✓] available
+  pip           [✓] available
 ```
 
 **Check 4: Summary**
 
 ```
   Summary:
-  Status:   [✗] 1 issue found
-  Cause:    npm 캐시 권한 문제
-  Fix:      sudo chown -R $(whoami) ~/.npm
-
-  또는 npx가 불필요한 방법으로 전환하세요:
-  /punch:setup 에서 Option A (Cursor MCP) 선택
+  Status:   [✓] All checks passed
+  
+  만약 문제가 있다면:
+  uvx 미설치 → pip install uv 또는 https://docs.astral.sh/uv/
+  Python 미설치 → brew install python3
 ```
 
 ---
@@ -463,8 +465,8 @@ npm ping 2>&1
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   삭제 대상:
-  - punch-gitlab MCP 등록 (있는 경우)
-  - punch-jira MCP 등록 (있는 경우)
+  - gitlab MCP 등록 (punch가 추가한 경우)
+  - jira MCP 등록 (punch가 추가한 경우)
 
   유지 항목:
   - Jira 워크로그 기록
@@ -476,6 +478,6 @@ npm ping 2>&1
 
 If Yes:
 
-1. Remove `punch-gitlab` and `punch-jira` from MCP config (if they exist)
-2. Does NOT touch tools from other sources
+1. Remove `gitlab` and `jira` keys from MCP config (only if added by Punch — check `"command": "uvx"` + `"args": ["mcp-gitlab"]` or `"args": ["mcp-atlassian"]`)
+2. Does NOT touch tools from other sources (e.g., existing `Confluence` key)
 3. Confirm: "Punch 설정이 제거되었습니다."
