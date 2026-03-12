@@ -21,16 +21,24 @@ Guided onboarding that connects your GitLab and Jira accounts.
 
 ## Design Principle
 
-**Detect first, install only if needed. Official plugin pattern: `plugin.json` mcpServers + shell env vars.**
+**Detect first, install only if needed. Write actual values — never rely on `${ENV_VAR}` in plugins.**
 
-Punch declares MCP servers in `plugin.json` using `${ENV_VAR}` placeholders in the `env` block — this is the official Claude Code plugin pattern (confirmed working in v2.0.72+, see [anthropics/claude-code#9427](https://github.com/anthropics/claude-code/issues/9427)).
+Punch does NOT bundle `mcpServers` in `plugin.json`. The official `${ENV_VAR}` pattern in plugin MCP configs is **unreliable** — the `env` block is not consistently passed to spawned server processes ([anthropics/claude-code#11927](https://github.com/anthropics/claude-code/issues/11927), open since Nov 2025, 26+ upvotes as of Mar 2026).
 
-**How it works:**
-1. `plugin.json` declares `mcpServers` with `"env": { "JIRA_URL": "${JIRA_URL}" }` — the `env` block resolves shell environment variables
-2. The user must have `GITLAB_URL`, `GITLAB_TOKEN`, `JIRA_URL`, `JIRA_PERSONAL_TOKEN` set in their shell environment
-3. `/punch:setup` collects credentials and writes them to `~/.zshenv` (NOT `~/.zshrc` — `~/.zshenv` is sourced for ALL zsh instances including non-interactive shells used by Claude Code)
+**Instead, `/punch:setup` writes actual credential values directly to the user's MCP config file:**
 
-**For Cursor users:** Plugin `mcpServers` don't apply in Cursor. Setup writes directly to `~/.cursor/mcp.json` with actual values.
+| Runtime | Config file | What setup writes |
+|---------|------------|-------------------|
+| **Cursor** | `~/.cursor/mcp.json` | Actual URL + token values |
+| **Claude Code** | `~/.claude/mcp.json` (user scope) | Actual URL + token values |
+
+**Why not `plugin.json` mcpServers?**
+- `${ENV_VAR}` in `env` blocks is NOT reliably resolved for plugin-bundled MCP servers
+- Even when resolved, the values may not be passed to spawned processes
+- Self-hosted services (GitLab, Jira) have variable URLs per user — can't hardcode
+- Community workaround: wrapper scripts — but adds complexity for no benefit
+
+**Detection priority:** Reuse existing tools from any source (IDE plugins, pre-configured MCP) before installing new ones.
 
 **Never use `npx`** — it has widespread EACCES permission issues. Use `uvx` (Python) for local processes.
 
@@ -202,16 +210,18 @@ For each missing tool, collect credentials then write the config directly.
 
 #### 2a: Detect Environment
 
-Determine where to write config. **Strategy differs by runtime.**
+Determine where to write the MCP config. **Both runtimes get actual values written directly.**
 
-| Runtime         | Plugin MCP auto-loaded? | Setup action                                          |
-|-----------------|------------------------|-------------------------------------------------------|
-| **Claude Code** | Yes (plugin.json)      | Write env vars to `~/.zshenv` → restart Claude Code  |
-| **Cursor**      | No                     | Write actual values to `~/.cursor/mcp.json`           |
+| Runtime         | Config File              | How to detect                                      |
+|-----------------|--------------------------|----------------------------------------------------|
+| **Cursor**      | `~/.cursor/mcp.json`     | You have access to `StrReplace`/`Write` file tools |
+| **Claude Code** | `~/.claude/mcp.json`     | You are running inside `claude` CLI                |
 
 **CRITICAL RULES:**
-- In **Claude Code**: The plugin's `mcpServers` in `plugin.json` auto-load with `${ENV_VAR}` resolution from the `env` block. So the setup only needs to ensure the env vars are SET. Try writing to **`~/.zshenv`** first (sourced for ALL zsh instances). If not writable (e.g., root-owned on managed machines), fall back to **`~/.zprofile`** (sourced for login shells — covers Claude Code CLI started from a terminal). Do NOT rely on `~/.zshrc` alone — it's only for interactive shells.
-- In **Cursor**: Plugin `mcpServers` don't apply. Write directly to `~/.cursor/mcp.json` using `Read` + `Write` tools with actual credential values.
+- **NEVER** use `${ENV_VAR}` placeholders. Always write **actual credential values**.
+  The `${ENV_VAR}` pattern in Claude Code is unreliable for plugin MCP servers ([#11927](https://github.com/anthropics/claude-code/issues/11927), open as of Mar 2026).
+- In **Cursor**: Write directly to `~/.cursor/mcp.json` using `Read` + `Write` tools.
+- In **Claude Code**: Write directly to `~/.claude/mcp.json` (user scope — available across all projects).
 - **NEVER** just show instructions and ask the user to configure manually. Always write the file directly.
 
 ---
@@ -258,49 +268,24 @@ Ask the user:
 
 **This is the critical step. The agent MUST directly modify the config, not just show instructions.**
 
----
+Both Claude Code and Cursor use the **same approach**: write actual credential values to an MCP config JSON file. The only difference is the file path.
 
-**Path A — Claude Code (plugin mcpServers auto-loaded):**
+| Runtime | Target file |
+|---------|-------------|
+| **Cursor** | `~/.cursor/mcp.json` |
+| **Claude Code** | `~/.claude/mcp.json` |
 
-The plugin's `plugin.json` already declares `mcpServers` with `${ENV_VAR}` in `env` blocks. Claude Code resolves these from the shell environment. So setup only needs to **set the env vars**.
+**Procedure:**
 
-1. Try writing to `~/.zshenv` first. If permission denied (e.g., root-owned), use `~/.zprofile` instead.
-2. Check if `GITLAB_URL`, `GITLAB_TOKEN`, `JIRA_URL`, `JIRA_PERSONAL_TOKEN` are already exported in the target file
-3. Append missing exports:
-
-```bash
-# Punch — GitLab & Jira credentials (for Claude Code plugin MCP)
-export GITLAB_URL="<collected-url>"
-export GITLAB_TOKEN="<collected-token>"
-export JIRA_URL="<collected-url>"
-export JIRA_PERSONAL_TOKEN="<collected-token>"
-```
-
-4. Tell user to restart Claude Code (`/exit` then re-launch `claude`)
-
-**Shell config file priority:**
-
-| File | Sourced when | Best for |
-|------|-------------|----------|
-| `~/.zshenv` | ALL zsh instances | Preferred (but may be root-owned) |
-| `~/.zprofile` | Login shells | Fallback — covers `claude` CLI started from terminal |
-| `~/.zshrc` | Interactive shells only | NOT reliable for MCP server processes |
-
----
-
-**Path B — Cursor (write actual values to mcp.json):**
-
-Plugin `mcpServers` don't apply in Cursor. Write directly to `~/.cursor/mcp.json`:
-
-1. Read the existing `~/.cursor/mcp.json` file
-2. Parse the JSON
-3. Add the missing server(s) to `mcpServers`:
+1. Read the target config file (ignore error if not exists)
+2. Parse the JSON (or start with `{ "mcpServers": {} }` if missing)
+3. Add the missing server(s) to `mcpServers` with **actual collected values**:
 
 GitLab:
 
 ```json
 {
-  "gitlab": {
+  "punch-gitlab": {
     "command": "uvx",
     "args": ["mcp-gitlab"],
     "env": {
@@ -315,7 +300,7 @@ Jira (check if it already exists under keys like `Confluence`, `jira`, `atlassia
 
 ```json
 {
-  "jira": {
+  "punch-jira": {
     "command": "uvx",
     "args": ["mcp-atlassian"],
     "env": {
@@ -326,53 +311,39 @@ Jira (check if it already exists under keys like `Confluence`, `jira`, `atlassia
 }
 ```
 
-4. Write the updated JSON back to `~/.cursor/mcp.json`
+4. Write the updated JSON back to the target file
 5. Preserve ALL existing servers — only add new ones
-6. Tell user to reload Cursor (Cmd+Shift+P → "Reload Window")
+6. Tell user to restart:
+   - Cursor: `Cmd+Shift+P → "Reload Window"`
+   - Claude Code: `/exit` then re-launch `claude`
 
----
-
-**IMPORTANT RULES (both paths):**
+**IMPORTANT RULES:**
+- **NEVER** use `${ENV_VAR}` placeholders — always write **actual values**
 - NEVER overwrite existing servers
 - NEVER remove other MCP servers from the config
 - NEVER use `npx` — always use `uvx` for local processes
 - ALWAYS use `Read` tool to get current file content first
-- For `~/.zshenv`: only append, never overwrite existing exports
-- For `~/.cursor/mcp.json`: if file doesn't exist, create with `{ "mcpServers": { ... } }`
+- If file doesn't exist, create with `{ "mcpServers": { ... } }`
+- Server keys are prefixed `punch-` to avoid collisions with user's existing servers
 
 #### 2e: Show Result
-
-**Claude Code:**
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  환경변수 등록 완료
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  ~/.zshenv 에 추가됨:
-  ├─ GITLAB_URL           https://gitlab.example.com
-  ├─ GITLAB_TOKEN         ****
-  ├─ JIRA_URL             https://jira.example.com
-  └─ JIRA_PERSONAL_TOKEN  ****
-
-  다음 단계: Claude Code를 재시작하세요.
-  /exit → claude 다시 실행
-  
-  재시작 후 Punch 플러그인의 MCP 서버가 자동으로 연결됩니다.
-```
-
-**Cursor:**
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   MCP 서버 등록 완료
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  GitLab   [✓] ~/.cursor/mcp.json 에 추가됨
-  Jira     [-] 이미 존재 (mcp-atlassian)
+  <config-file> 에 추가됨:
+  ├─ punch-gitlab       uvx mcp-gitlab
+  │    GITLAB_URL       https://gitlab.example.com
+  │    GITLAB_TOKEN     ****
+  ├─ punch-jira         uvx mcp-atlassian
+  │    JIRA_URL         https://jira.example.com
+  └─   JIRA_PERSONAL..  ****
 
-  Cursor를 재시작해야 새 MCP 서버가 활성화됩니다.
-  Cmd+Shift+P → "Reload Window"
+  다음 단계:
+  Cursor  → Cmd+Shift+P → "Reload Window"
+  Claude  → /exit → claude 다시 실행
 ```
 
 ---
@@ -490,24 +461,17 @@ Make test calls to each tool.
   Jira API     [✓] OK        company.atlassian.net
 ```
 
-**Check 3: Environment Variables**
+**Check 3: MCP Config Files**
 
-```bash
-echo "GITLAB_URL=${GITLAB_URL:-NOT_SET}"
-echo "GITLAB_TOKEN=${GITLAB_TOKEN:+SET}"
-echo "JIRA_URL=${JIRA_URL:-NOT_SET}"
-echo "JIRA_PERSONAL_TOKEN=${JIRA_PERSONAL_TOKEN:+SET}"
-```
+Read and report the status of MCP config files:
 
 ```
-  Environment Variables:
-  GITLAB_URL              [✓] https://gitlab.example.com
-  GITLAB_TOKEN            [✓] set
-  JIRA_URL                [✓] https://jira.example.com
-  JIRA_PERSONAL_TOKEN     [✓] set
+  MCP Config Files:
+  ~/.cursor/mcp.json      [✓] exists    punch-gitlab, punch-jira found
+  ~/.claude/mcp.json      [-] not found
 ```
 
-If any are NOT_SET, check `~/.zshenv` for the exports.
+For each found config, verify the server entries have non-empty URL and token values (not `${ENV_VAR}` placeholders).
 
 **Check 4: uvx health**
 
@@ -530,7 +494,7 @@ python3 --version 2>&1
   Status:   [✓] All checks passed
   
   만약 문제가 있다면:
-  env vars 미설정 → /punch:setup 으로 ~/.zshenv 에 추가
+  MCP 미설정 → /punch:setup 으로 자동 등록
   uvx 미설치 → pip install uv 또는 https://docs.astral.sh/uv/
   Python 미설치 → brew install python3
 ```

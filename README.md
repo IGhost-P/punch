@@ -293,7 +293,7 @@ Run `/punch:setup` — it first checks if you already have GitLab/Jira tools ava
 ```
 punch/
 ├── .claude-plugin/
-│   ├── plugin.json          Plugin manifest + mcpServers (official pattern)
+│   ├── plugin.json          Plugin manifest (no bundled mcpServers)
 │   └── marketplace.json     Marketplace distribution
 ├── commands/
 │   ├── sync.md              <- main command
@@ -310,29 +310,40 @@ punch/
     └── help/                Command reference
 ```
 
-**How MCP works — official plugin pattern:**
+**How MCP works — direct config approach:**
 
-Punch declares MCP servers in `plugin.json` using `${ENV_VAR}` in the `env` block — the [official Claude Code pattern](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers). The `env` block resolves shell environment variables correctly (confirmed in Claude Code v2.0.72+).
+Punch does NOT bundle `mcpServers` in `plugin.json`. The [official `${ENV_VAR}` pattern](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers) in plugin `env` blocks is **unreliable** — the `env` block values are not consistently passed to spawned MCP server processes ([anthropics/claude-code#11927](https://github.com/anthropics/claude-code/issues/11927), open since Nov 2025 with 26+ upvotes as of Mar 2026).
+
+Instead, `/punch:setup` writes **actual credential values** directly to the user's MCP config file:
 
 ```
-  Claude Code                              Cursor
-  ┌──────────────────┐                     ┌──────────────────┐
-  │ plugin.json      │                     │ ~/.cursor/mcp.json│
-  │ mcpServers:      │                     │ mcpServers:       │
-  │   env:           │                     │   gitlab:         │
-  │     ${JIRA_URL}  │◄─ ~/.zshenv        │     url: actual   │
-  │     ${GITLAB_URL}│   (env vars)        │   jira:           │
-  └──────────────────┘                     │     url: actual   │
-                                           └──────────────────┘
-                                           ▲ /punch:setup writes
+  /punch:setup
+  ┌─────────────────────┐
+  │ Collect credentials │
+  │ GitLab URL + Token  │
+  │ Jira URL + Token    │
+  └─────────┬───────────┘
+            │
+      ┌─────┴─────┐
+      │           │
+      v           v
+  Cursor        Claude Code
+  ~/.cursor/    ~/.claude/
+  mcp.json      mcp.json
+  (actual       (actual
+   values)       values)
 ```
 
-| Runtime | MCP source | Setup writes to |
-|---------|-----------|-----------------|
-| **Claude Code** | `plugin.json` mcpServers (auto) | `~/.zshenv` (env vars) |
-| **Cursor** | `~/.cursor/mcp.json` (manual) | `~/.cursor/mcp.json` (actual values) |
+| Runtime | Setup writes to | Format |
+|---------|----------------|--------|
+| **Cursor** | `~/.cursor/mcp.json` | `punch-gitlab`, `punch-jira` with actual values |
+| **Claude Code** | `~/.claude/mcp.json` | Same — actual values, user scope |
 
-**Why `~/.zshenv` not `~/.zshrc`?** Claude Code spawns MCP servers as non-interactive processes. `~/.zshrc` is only loaded for interactive shells. `~/.zshenv` is loaded for ALL zsh processes.
+**Why not `plugin.json` mcpServers + `${ENV_VAR}`?**
+1. The `env` block's `${ENV_VAR}` resolution is [unreliable for plugins](https://github.com/anthropics/claude-code/issues/11927)
+2. Even when resolved, env values may not reach spawned processes ([#22571](https://github.com/anthropics/claude-code/issues/22571))
+3. Self-hosted services (GitLab, Jira) have different URLs per user — can't hardcode in plugin
+4. Writing actual values to the MCP config file works reliably in all environments
 
 **Why `uvx`, not `npx`?** `npx` fails with `npm EACCES` permission errors. `uvx` (Python/uv) has no such issues.
 

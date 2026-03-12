@@ -1,29 +1,11 @@
 {
   "name": "punch",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Clock in your dev work. Reads GitLab commits, MRs, code reviews, and issues — then logs time to Jira with your approval.",
   "author": {
     "name": "swyang"
   },
   "license": "MIT",
   "keywords": ["gitlab", "jira", "worklog", "time-tracking", "productivity"],
-  "skills": "./skills/",
-  "mcpServers": {
-    "punch-gitlab": {
-      "command": "uvx",
-      "args": ["mcp-gitlab"],
-      "env": {
-        "GITLAB_URL": "${GITLAB_URL}",
-        "GITLAB_TOKEN": "${GITLAB_TOKEN}"
-      }
-    },
-    "punch-jira": {
-      "command": "uvx",
-      "args": ["mcp-atlassian"],
-      "env": {
-        "JIRA_URL": "${JIRA_URL}",
-        "JIRA_PERSONAL_TOKEN": "${JIRA_PERSONAL_TOKEN}"
-      }
-    }
-  }
+  "skills": "./skills/"
 }
