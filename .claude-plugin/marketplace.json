@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "punch",
+  "description": "Clock in your dev work — sync GitLab activity to Jira worklogs with interactive confirmation",
+  "owner": {
+    "name": "swyang"
+  },
+  "plugins": [
+    {
+      "name": "punch",
+      "description": "Reads GitLab commits, MRs, code reviews, and issues — then logs time to Jira with your approval",
+      "version": "0.5.0",
+      "author": {
+        "name": "swyang"
+      },
+      "source": "./",
+      "category": "productivity",
+      "license": "MIT",
+      "keywords": ["gitlab", "jira", "worklog", "time-tracking", "productivity"],
+      "tags": ["devops", "time-tracking", "automation"]
+    }
+  ]
+}

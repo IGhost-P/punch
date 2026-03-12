@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "gitlab": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-gitlab"],
+      "env": {
+        "GITLAB_PERSONAL_ACCESS_TOKEN": "${GITLAB_TOKEN}",
+        "GITLAB_API_URL": "${GITLAB_URL}/api/v4"
+      }
+    },
+    "jira": {
+      "command": "npx",
+      "args": ["-y", "jira-mcp"],
+      "env": {
+        "JIRA_URL": "${JIRA_URL}",
+        "JIRA_EMAIL": "${JIRA_EMAIL}",
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
+      }
+    }
+  }
+}

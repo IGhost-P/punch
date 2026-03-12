@@ -1,0 +1,11 @@
+{
+  "name": "punch",
+  "version": "0.5.0",
+  "description": "Clock in your dev work. Reads GitLab commits, MRs, code reviews, and issues — then logs time to Jira with your approval.",
+  "author": {
+    "name": "swyang"
+  },
+  "license": "MIT",
+  "keywords": ["gitlab", "jira", "worklog", "time-tracking", "productivity"],
+  "skills": "./skills/"
+}
