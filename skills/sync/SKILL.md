@@ -29,11 +29,13 @@ The main command. Reads GitLab activity and proposes **three types of Jira updat
 Try a lightweight read-only call for each:
 
 **GitLab** — look for tools in this order:
+
 1. `mcp__gitlab__*` or `mcp__punch-gitlab__*` (Claude Code MCP)
 2. `user-*gitlab*` (Cursor/IDE MCP)
 3. Any tool that can list commits, list projects, or get a user
 
 **Jira** — look for tools in this order:
+
 1. `mcp__jira__*` or `mcp__punch-jira__*` (Claude Code MCP)
 2. `user-Confluence-jira_*` or `user-*jira*` (Cursor/IDE MCP)
 3. Any tool named `jira_search`, `jira_add_worklog`, etc.
@@ -53,14 +55,14 @@ Try a lightweight read-only call for each:
 
 ### Failure handling
 
-| Situation | Display |
-|-----------|---------|
-| No GitLab tools | `├─ GitLab   ⚪ missing` → guide to `/punch:setup` |
-| No Jira tools | `└─ Jira     ⚪ missing` → guide to `/punch:setup` |
-| GitLab auth error | `├─ GitLab   🔴 auth failed` → check token |
-| Jira auth error | `└─ Jira     🔴 auth failed` → check token |
-| GitLab OK, Jira missing | Offer dry-run mode (preview without writing) |
-| Both missing | Guide to `/punch:setup` |
+| Situation               | Display                                                   |
+|-------------------------|-----------------------------------------------------------|
+| No GitLab tools         | `├─ GitLab   ⚪ missing` → guide to `/punch:setup`         |
+| No Jira tools           | `└─ Jira     ⚪ missing` → guide to `/punch:setup`         |
+| GitLab auth error       | `├─ GitLab   🔴 auth failed` → check token                 |
+| Jira auth error         | `└─ Jira     🔴 auth failed` → check token                 |
+| GitLab OK, Jira missing | Offer dry-run mode (preview without writing)              |
+| Both missing            | Guide to `/punch:setup`                                   |
 
 **Remember the detected tool names** for use throughout the rest of the flow. For example, if Jira tools are at `user-Confluence-jira_*`, use that namespace for all subsequent Jira calls.
 
@@ -69,6 +71,7 @@ Try a lightweight read-only call for each:
 ## Step 1: Parse Date Range
 
 From the user's arguments:
+
 - `today` (default if empty) — today only
 - `this-week` — Monday through today
 - `YYYY-MM-DD` — specific date
@@ -88,16 +91,17 @@ If not in a git repo, use GitLab MCP to list user's projects. If many, ask which
 
 Fetch **all** activity types for the user within the date range:
 
-| Category | Source | What it captures |
-|----------|--------|------------------|
-| **Commits** | `list_commits` or Events API | Code pushed |
-| **MR Created** | Events API (`created` + `merge_request`) | MR preparation |
-| **MR Merged** | Events API (`merged`) | Final review + merge |
-| **Code Review** | MR notes/discussions | Reviewing others' MRs |
-| **Issue Activity** | Events API (`created`/`commented`/`closed` + `issue`) | Issue triage |
-| **Branch Created** | Events API (`pushed` with new ref) | Work started |
+| Category           | Source                                                | What it captures      |
+|--------------------|-------------------------------------------------------|-----------------------|
+| **Commits**        | `list_commits` or Events API                          | Code pushed           |
+| **MR Created**     | Events API (`created` + `merge_request`)              | MR preparation        |
+| **MR Merged**      | Events API (`merged`)                                 | Final review + merge  |
+| **Code Review**    | MR notes/discussions                                  | Reviewing others' MRs |
+| **Issue Activity** | Events API (`created`/`commented`/`closed` + `issue`) | Issue triage          |
+| **Branch Created** | Events API (`pushed` with new ref)                    | Work started          |
 
 Fallback if Events API unavailable:
+
 - `list_merge_requests` filtered by author/reviewer
 - `git log --author=<email> --since=<date> --until=<date>`
 
@@ -122,6 +126,7 @@ Fallback if Events API unavailable:
 ## Step 5: Parse Jira Issue Keys
 
 Extract keys from all selected activities:
+
 - Branch names: `feature/PROJ-42-user-settings` → `PROJ-42`
 - Commit messages: `PROJ-101: fix layout` → `PROJ-101`
 - MR titles: `[PROJ-205] Add feature` → `PROJ-205`
@@ -152,11 +157,13 @@ project IN (PROJ, TEAM) AND assignee = currentUser() AND status NOT IN (Done, Cl
 ### 5.5b: Keyword Matching
 
 For each unlinked activity, extract keywords from:
+
 - Commit messages (stripped of conventional commit prefixes like `feat:`, `fix:`)
 - MR titles
 - Branch names (split on `/`, `-`, `_`)
 
 Compare these keywords against Jira issue summaries using simple overlap scoring:
+
 - Count matching words (case-insensitive, ignoring stop words)
 - Score = matching words / total keywords
 - Threshold: score ≥ 0.3 → suggest as a match
@@ -217,6 +224,7 @@ On future runs, check `branch_mappings` first before keyword matching. This lear
 ## Step 6: Fetch Current Jira Issue States
 
 For each unique issue key (both auto-detected and user-confirmed), call `jira_get_issue` to get:
+
 - Current status (e.g., `To Do`, `In Progress`, `In Review`, `Done`)
 - Available transitions (call `jira_get_transitions`)
 - Existing worklogs for today (for dedup)
@@ -228,6 +236,7 @@ This data is needed for both worklog dedup and issue update proposals.
 ## Step 7: Learn Worklog Style
 
 Same as `/punch:sync-worklog` Step 7:
+
 1. Collect user's recent worklog comments (5-10 entries)
 2. Analyze language, format, detail level, prefix, references
 3. Show detected style and confirm
@@ -242,6 +251,7 @@ This is the core of `/punch:sync`. Build **three sections** from the activity:
 ### Section A: Worklogs
 
 Same logic as `/punch:sync-worklog`:
+
 - Estimate time per issue using activity-based strategy
 - Check for existing worklogs (dedup)
 - Generate comments in learned style
@@ -250,15 +260,16 @@ Same logic as `/punch:sync-worklog`:
 
 **Transition rules — propose status changes based on GitLab events:**
 
-| GitLab Event | Current Status | Proposed Status | Condition |
-|-------------|---------------|-----------------|-----------|
-| Branch created for issue | `To Do` / `Open` | → `In Progress` | Branch name contains issue key |
-| First commit on issue | `To Do` / `Open` | → `In Progress` | No prior commits for this issue today |
-| MR created | `In Progress` | → `In Review` | MR title/branch contains issue key |
-| MR merged | `In Review` / `In Progress` | → `Done` | MR title/branch contains issue key |
-| Issue closed (GitLab) | any | → `Done` | GitLab issue linked to Jira key |
+| GitLab Event             | Current Status              | Proposed Status   | Condition                             |
+|--------------------------|-----------------------------|-------------------|---------------------------------------|
+| Branch created for issue | `To Do` / `Open`            | → `In Progress`   | Branch name contains issue key        |
+| First commit on issue    | `To Do` / `Open`            | → `In Progress`   | No prior commits for this issue today |
+| MR created               | `In Progress`               | → `In Review`     | MR title/branch contains issue key    |
+| MR merged                | `In Review` / `In Progress` | → `Done`          | MR title/branch contains issue key    |
+| Issue closed (GitLab)    | any                         | → `Done`          | GitLab issue linked to Jira key       |
 
 **Safety rules:**
+
 - NEVER propose a backward transition (e.g., `Done` → `In Progress`) unless explicitly detected
 - NEVER propose a transition if the current status already matches or is further along
 - Only propose transitions that are **available** in `jira_get_transitions` response
@@ -274,15 +285,16 @@ Same logic as `/punch:sync-worklog`:
 
 **Comment rules — add informational comments to Jira issues:**
 
-| GitLab Event | Comment Content |
-|-------------|----------------|
-| MR created | `"MR !42 created: [title] (+230/-45, 5 commits)"` |
-| MR merged | `"MR !42 merged by [author] → [target_branch]"` |
-| Code review given | `"Code review: 3 comments on MR !45"` |
+| GitLab Event      | Comment Content                                   |
+|-------------------|---------------------------------------------------|
+| MR created        | `"MR !42 created: [title] (+230/-45, 5 commits)"` |
+| MR merged         | `"MR !42 merged by [author] → [target_branch]"`   |
+| Code review given | `"Code review: 3 comments on MR !45"`             |
 
 **Comment style:** Follow the same style detected in Step 7 (language, detail level).
 
 **When NOT to comment:**
+
 - Don't add comments for individual commits (too noisy)
 - Don't comment if there's already a similar comment today (check with `jira_get_issue` comments)
 - Don't comment on "Issue Activity" that originated from Jira itself (avoid loops)
@@ -351,6 +363,7 @@ Execute in order: **Status transitions → Comments → Worklogs**
 ### 10a: Issue Status Transitions
 
 For each approved transition, call `jira_transition_issue`:
+
 - `issue_key`: the Jira issue key
 - `transition_id`: from `jira_get_transitions` (matched by target status name)
 
@@ -366,6 +379,7 @@ If a transition fails (e.g., required field missing), report the error and conti
 ### 10b: Jira Comments
 
 For each approved comment, call `jira_add_comment`:
+
 - `issue_key`: the Jira issue key
 - `body`: the comment text
 
@@ -379,6 +393,7 @@ For each approved comment, call `jira_add_comment`:
 ### 10c: Worklogs
 
 For each approved worklog, call `jira_add_worklog`:
+
 - `issue_key`: the Jira issue key
 - `time_spent`: Jira format (`3h 45m`)
 - `started`: ISO 8601 with timezone

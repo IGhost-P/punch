@@ -2,7 +2,8 @@
 name: worklog-domain
 description: "Domain knowledge for Punch — issue key parsing, time estimation, duplicate prevention"
 globs:
-  - "**/*"
+
+- "**/*"
 ---
 
 # Punch Domain Knowledge
@@ -39,6 +40,7 @@ Examples: `PROJ-101`, `TEAM-42`, `WEB-7`
 ### Deduplication
 
 A single MR may have many commits all referencing the same issue. Deduplicate by:
+
 - Grouping all commits under a branch → single issue key from the branch name
 - If branch has no key, fall back to the most frequent key in commit messages
 
@@ -58,15 +60,15 @@ This ensures Punch works regardless of naming conventions — even with zero Jir
 
 Not all GitLab work is commits. The plugin recognizes these activity categories:
 
-| Category | GitLab Event | How to detect | Default time |
-|----------|-------------|---------------|-------------|
-| **Commits/Push** | `pushed` event or commit list | `list_commits`, Events API | Interval-based |
-| **MR Created** | `created` + target_type `MergeRequest` | Events API or MR list filtered by created_at | 30m |
-| **MR Merged** | `merged` event | Events API | 15m |
-| **Code Review** | `commented` on a MR (note on MR) | MR notes API, or Events with target_type `Note` | 15m per comment |
-| **Issue Comment** | `commented` on an issue | Events API | 15m |
-| **Issue Created** | `created` + target_type `Issue` | Events API | 20m |
-| **Issue Closed** | `closed` + target_type `Issue` | Events API | 10m |
+| Category          | GitLab Event                           | How to detect                                   | Default time    |
+|-------------------|----------------------------------------|-------------------------------------------------|-----------------|
+| **Commits/Push**  | `pushed` event or commit list          | `list_commits`, Events API                      | Interval-based  |
+| **MR Created**    | `created` + target_type `MergeRequest` | Events API or MR list filtered by created_at    | 30m             |
+| **MR Merged**     | `merged` event                         | Events API                                      | 15m             |
+| **Code Review**   | `commented` on a MR (note on MR)       | MR notes API, or Events with target_type `Note` | 15m per comment |
+| **Issue Comment** | `commented` on an issue                | Events API                                      | 15m             |
+| **Issue Created** | `created` + target_type `Issue`        | Events API                                      | 20m             |
+| **Issue Closed**  | `closed` + target_type `Issue`         | Events API                                      | 10m             |
 
 ### Issue Key Extraction per Activity Type
 
@@ -78,6 +80,7 @@ Not all GitLab work is commits. The plugin recognizes these activity categories:
 ### Code Review: A Special Case
 
 Code review time is real work but easy to miss. When the user reviews someone else's MR:
+
 - The MR's branch/title may contain a Jira issue key
 - Log the review time against that Jira issue
 - In the worklog comment, clarify: `"GitLab sync: code review on !45 (2 comments)"`
@@ -88,6 +91,7 @@ Code review time is real work but easy to miss. When the user reviews someone el
 ### Strategy A: Activity-Based (Default)
 
 **For commits:**
+
 1. Collect all commits by the user within the date range, sorted by timestamp.
 2. For consecutive commits on the same issue:
    - Time between them = estimated time spent
@@ -98,6 +102,7 @@ Code review time is real work but easy to miss. When the user reviews someone el
    - Estimate **30 minutes** minimum
 
 **For non-commit activities:**
+
 - Apply the default time estimates from the activity type table above.
 - Multiple activities on the same issue stack: 3 review comments = 45m.
 
@@ -139,13 +144,13 @@ Before generating comments for new worklogs, Punch analyzes the user's existing 
 1. Collect the user's recent worklog comments (5-10 entries).
 2. Analyze across these dimensions:
 
-| Dimension | What to look for | Examples |
-|-----------|-----------------|---------|
-| **Language** | Primary language used | `"작업 완료"` → Korean; `"Fixed bug"` → English |
-| **Format** | Structure of the comment | Bullet list, free text, tag prefix |
-| **Detail level** | How much info is included | `"작업함"` (minimal) vs `"드롭다운 정렬 수정, 반응형 처리 추가"` (detailed) |
-| **Prefix** | Any consistent prefix | `[DEV]`, `Punch:`, none |
-| **References** | Whether MR/commit refs are included | `"MR !42"`, `"3 commits"` |
+| Dimension        | What to look for                    | Examples                                                                                      |
+|------------------|-------------------------------------|-----------------------------------------------------------------------------------------------|
+| **Language**     | Primary language used               | `"작업 완료"` → Korean; `"Fixed bug"` → English                                                   |
+| **Format**       | Structure of the comment            | Bullet list, free text, tag prefix                                                            |
+| **Detail level** | How much info is included           | `"작업함"` (minimal) vs `"드롭다운 정렬 수정, 반응형 처리 추가"` (detailed)                                     |
+| **Prefix**       | Any consistent prefix               | `[DEV]`, `Punch:`, none                                                                       |
+| **References**   | Whether MR/commit refs are included | `"MR !42"`, `"3 commits"`                                                                     |
 
 3. Build a style profile and persist it in `~/.punch/prefs.json`.
 4. On subsequent runs, load the saved profile. Re-detect every ~10 syncs or when user asks.
@@ -183,6 +188,7 @@ Worklogs created by Punch include `"Punch:"` in the comment. Use this marker to 
 ## Common Project Patterns
 
 The user works with these GitLab projects and Jira projects:
+
 - Branch naming: `{type}/{ISSUE-KEY}-{short-description}` (e.g., `feature/PROJ-101-dashboard-widget`)
 - Commit format: `{ISSUE-KEY}: {description}` or `{ISSUE-KEY} {description}`
 - MR title format: `[{ISSUE-KEY}] {description}` or `{ISSUE-KEY}: {description}`

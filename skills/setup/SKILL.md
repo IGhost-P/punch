@@ -57,11 +57,11 @@ Punch doesn't bundle MCP servers. It uses whatever GitLab/Jira tools are already
 
 Try these patterns in order:
 
-| Priority | Tool Pattern | Source |
-|----------|-------------|--------|
-| 1 | `mcp__gitlab__*`, `mcp__punch-gitlab__*` | Claude Code MCP |
-| 2 | `user-*gitlab*`, tools containing `gitlab` | Cursor/IDE MCP |
-| 3 | Any tool that can `list_commits`, `get_project` | Generic |
+| Priority | Tool Pattern                                    | Source          |
+|----------|-------------------------------------------------|-----------------|
+| 1        | `mcp__gitlab__*`, `mcp__punch-gitlab__*`        | Claude Code MCP |
+| 2        | `user-*gitlab*`, tools containing `gitlab`      | Cursor/IDE MCP  |
+| 3        | Any tool that can `list_commits`, `get_project` | Generic         |
 
 **Test by calling** a read-only tool (e.g., list projects). If it returns data → GitLab is ready.
 
@@ -69,11 +69,11 @@ Try these patterns in order:
 
 Try these patterns in order:
 
-| Priority | Tool Pattern | Source |
-|----------|-------------|--------|
-| 1 | `mcp__jira__*`, `mcp__punch-jira__*` | Claude Code MCP |
-| 2 | `user-Confluence-jira_*`, `user-*jira*` | Cursor/IDE MCP |
-| 3 | Any tool named `jira_search`, `jira_add_worklog` | Generic |
+| Priority | Tool Pattern                                     | Source          |
+|----------|--------------------------------------------------|-----------------|
+| 1        | `mcp__jira__*`, `mcp__punch-jira__*`             | Claude Code MCP |
+| 2        | `user-Confluence-jira_*`, `user-*jira*`          | Cursor/IDE MCP  |
+| 3        | Any tool named `jira_search`, `jira_add_worklog` | Generic         |
 
 **Test by calling** `jira_search` or `jira_get_all_projects`. If it returns data → Jira is ready.
 
@@ -242,12 +242,12 @@ If npx fails, show specific fix:
   {specific error and fix — see table below}
 ```
 
-| Error | Fix |
-|-------|-----|
-| `EACCES` on `~/.npm` | `sudo chown -R $(whoami) ~/.npm` (터미널에서 실행) |
-| `ENOENT` / `command not found` | `brew install node` (macOS) |
-| `CERT_HAS_EXPIRED` / `SSL` | `npm config set strict-ssl false` |
-| `ETIMEOUT` / `network` | VPN/프록시 확인 |
+| Error                          | Fix                                                       |
+|--------------------------------|-----------------------------------------------------------|
+| `EACCES` on `~/.npm`           | `sudo chown -R $(whoami) ~/.npm` (터미널에서 실행)               |
+| `ENOENT` / `command not found` | `brew install node` (macOS)                               |
+| `CERT_HAS_EXPIRED` / `SSL`     | `npm config set strict-ssl false`                         |
+| `ETIMEOUT` / `network`         | VPN/프록시 확인                                                |
 
 If npx is OK, register:
 
@@ -444,6 +444,7 @@ npm ping 2>&1
 ```
 
 If Yes:
+
 1. Remove `punch-gitlab` and `punch-jira` from MCP config (if they exist)
 2. Does NOT touch tools from other sources
 3. Confirm: "Punch 설정이 제거되었습니다."

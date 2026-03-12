@@ -72,6 +72,7 @@ Detect Jira tools (same as `/punch:sync` — tool-agnostic, any source).
    ```
    worklogAuthor = currentUser() AND worklogDate >= "YYYY-MM-DD"
    ```
+
 3. For each found issue, fetch worklogs filtered by date and user.
 4. Display:
 
@@ -123,6 +124,7 @@ For weekly reports, show a day-by-day breakdown:
 ## Duplicate Detection
 
 Flag entries that look like duplicates:
+
 - Same issue + same date + similar time = likely duplicate
 - Multiple "Punch:" entries on same issue+date = likely re-sync
 - Warn: `⚠️ PROJ-101: 오늘 3h 워크로그가 2건 있습니다 (중복 가능)`

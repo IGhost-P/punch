@@ -114,12 +114,12 @@ If nothing is found, setup guides you through adding them:
   └─ C ─ 직접 설정할게요
 ```
 
-| Source | GitLab | Jira | npx needed? |
-|--------|--------|------|-------------|
-| Cursor MCP settings | ✓ | ✓ | Depends |
-| Claude Code MCP | ✓ | ✓ | Depends |
-| IDE plugins | ✓ | — | No |
-| Cursor Confluence MCP | — | ✓ | No |
+| Source                | GitLab | Jira | npx needed? |
+|-----------------------|--------|------|-------------|
+| Cursor MCP settings   | ✓      | ✓    | Depends     |
+| Claude Code MCP       | ✓      | ✓    | Depends     |
+| IDE plugins           | ✓      | —    | No          |
+| Cursor Confluence MCP | —      | ✓    | No          |
 
 ---
 
@@ -162,14 +162,14 @@ This is what you see before anything is written:
 
 Your options:
 
-| Input           | What happens                  |
-| --------------- | ----------------------------- |
-| "확인" / "yes"  | Execute all                   |
-| "1번 2시간으로" | Adjust time for entry #1      |
-| "#5 빼줘"       | Remove entry #5               |
-| "워크로그만"    | Execute only worklogs section |
-| "코멘트 빼줘"   | Skip all comments             |
-| "취소"          | Abort — nothing is written    |
+| Input                | What happens                  |
+|----------------------|-------------------------------|
+| "확인" / "yes"         | Execute all                   |
+| "1번 2시간으로"           | Adjust time for entry #1      |
+| "#5 빼줘"              | Remove entry #5               |
+| "워크로그만"              | Execute only worklogs section |
+| "코멘트 빼줘"             | Skip all comments             |
+| "취소"                 | Abort — nothing is written    |
 
 ---
 
@@ -177,22 +177,22 @@ Your options:
 
 > All commands run inside a Claude Code session. Run `/punch:setup` after installation to verify tools.
 
-| Command                 | What It Does                                         |
-| ----------------------- | ---------------------------------------------------- |
-| `/punch:sync`           | Full sync — worklogs + status transitions + comments |
-| `/punch:sync-worklog`   | Worklogs only (time logging)                         |
-| `/punch:worklog-report` | View existing worklogs + spot duplicates             |
-| `/punch:setup`          | Detect tools or connect GitLab + Jira                |
-| `/punch:help`           | Full reference                                       |
+| Command                 | What It Does                                           |
+|-------------------------|--------------------------------------------------------|
+| `/punch:sync`           | Full sync — worklogs + status transitions + comments   |
+| `/punch:sync-worklog`   | Worklogs only (time logging)                           |
+| `/punch:worklog-report` | View existing worklogs + spot duplicates               |
+| `/punch:setup`          | Detect tools or connect GitLab + Jira                  |
+| `/punch:help`           | Full reference                                         |
 
 Natural language triggers:
 
-| Say this            | Runs this                         |
-| ------------------- | --------------------------------- |
-| "오늘 정리해줘"     | `/punch:sync today`               |
-| "워크로그만 기록"   | `/punch:sync-worklog today`       |
-| "이번 주 기록 확인" | `/punch:worklog-report this-week` |
-| "punch in"          | `/punch:sync today`               |
+| Say this                   | Runs this                         |
+|----------------------------|-----------------------------------|
+| "오늘 정리해줘"                  | `/punch:sync today`               |
+| "워크로그만 기록"                 | `/punch:sync-worklog today`       |
+| "이번 주 기록 확인"               | `/punch:worklog-report this-week` |
+| "punch in"                 | `/punch:sync today`               |
 
 ---
 
@@ -204,12 +204,12 @@ Natural language triggers:
 
 Punch analyzes your recent Jira worklogs and matches the style:
 
-| Dimension      | What it detects                             |
-| -------------- | ------------------------------------------- |
-| **Language**   | Korean / English / Mixed                    |
-| **Format**     | Bullet list / Free text / Tag prefix        |
-| **Detail**     | Minimal ("작업 완료") / Moderate / Detailed |
-| **References** | MR numbers, commit counts, line changes     |
+| Dimension      | What it detects                                 |
+|----------------|-------------------------------------------------|
+| **Language**   | Korean / English / Mixed                        |
+| **Format**     | Bullet list / Free text / Tag prefix            |
+| **Detail**     | Minimal ("작업 완료") / Moderate / Detailed         |
+| **References** | MR numbers, commit counts, line changes         |
 
 Style is saved to `~/.punch/prefs.json` and reused on future runs.
 
@@ -278,7 +278,7 @@ When Jira isn't connected, Punch still works — it shows you the preview withou
 ## Setup Requirements
 
 | Service | Token                                                                    | Scopes                        |
-| ------- | ------------------------------------------------------------------------ | ----------------------------- |
+|---------|--------------------------------------------------------------------------|-------------------------------|
 | GitLab  | Personal Access Token                                                    | `read_api`, `read_repository` |
 | Jira    | [API Token](https://id.atlassian.com/manage-profile/security/api-tokens) | default (full access)         |
 
@@ -289,7 +289,7 @@ Run `/punch:setup` — it first checks if you already have GitLab/Jira tools ava
 ## Config
 
 | Path                    | Purpose                                             |
-| ----------------------- | --------------------------------------------------- |
+|-------------------------|-----------------------------------------------------|
 | `~/.punch/prefs.json`   | Style, strategy, transition rules, default projects |
 | `~/.punch/history.json` | Sync history for dedup and offline reports          |
 
