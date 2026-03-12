@@ -21,17 +21,18 @@ Guided onboarding that connects your GitLab and Jira accounts.
 
 ## Design Principle
 
-**Detect first, install only if needed. Follow official plugin patterns.**
+**Detect first, install only if needed. Official plugin pattern: `plugin.json` mcpServers + shell env vars.**
 
-Punch declares MCP servers in `.mcp.json` (separate file, not inline in `plugin.json`) — matching the pattern used by official Claude Code plugins (GitLab, GitHub, Slack, Playwright).
+Punch declares MCP servers in `plugin.json` using `${ENV_VAR}` placeholders in the `env` block — this is the official Claude Code plugin pattern (confirmed working in v2.0.72+, see [anthropics/claude-code#9427](https://github.com/anthropics/claude-code/issues/9427)).
 
-**Transport priority:**
-1. **HTTP transport** (`"type": "http"`) — preferred when the server exposes a remote MCP endpoint (e.g., GitLab 17.8+ at `{url}/api/v4/mcp`)
-2. **Local process** (`"command": "uvx"`) — fallback for self-hosted servers or services without HTTP MCP endpoints (e.g., Jira via `mcp-atlassian`)
+**How it works:**
+1. `plugin.json` declares `mcpServers` with `"env": { "JIRA_URL": "${JIRA_URL}" }` — the `env` block resolves shell environment variables
+2. The user must have `GITLAB_URL`, `GITLAB_TOKEN`, `JIRA_URL`, `JIRA_PERSONAL_TOKEN` set in their shell environment
+3. `/punch:setup` collects credentials and writes them to `~/.zshenv` (NOT `~/.zshrc` — `~/.zshenv` is sourced for ALL zsh instances including non-interactive shells used by Claude Code)
+
+**For Cursor users:** Plugin `mcpServers` don't apply in Cursor. Setup writes directly to `~/.cursor/mcp.json` with actual values.
 
 **Never use `npx`** — it has widespread EACCES permission issues. Use `uvx` (Python) for local processes.
-
-If tools are already available from any source (Cursor MCP, Claude Code MCP, IDE plugins), Punch reuses them.
 
 ---
 
@@ -201,16 +202,16 @@ For each missing tool, collect credentials then write the config directly.
 
 #### 2a: Detect Environment
 
-Determine where to write the MCP config. **You MUST write to the correct file for the current runtime.**
+Determine where to write config. **Strategy differs by runtime.**
 
-| Runtime         | Config File            | How to detect                                      |
-|-----------------|------------------------|----------------------------------------------------|
-| **Cursor**      | `~/.cursor/mcp.json`   | You have access to `StrReplace`/`Write` file tools |
-| **Claude Code** | `~/.claude/mcp.json`   | You are running inside `claude` CLI                |
+| Runtime         | Plugin MCP auto-loaded? | Setup action                                          |
+|-----------------|------------------------|-------------------------------------------------------|
+| **Claude Code** | Yes (plugin.json)      | Write env vars to `~/.zshenv` → restart Claude Code  |
+| **Cursor**      | No                     | Write actual values to `~/.cursor/mcp.json`           |
 
 **CRITICAL RULES:**
-- In **Cursor**: Write directly to `~/.cursor/mcp.json` using `Read` + `StrReplace`/`Write` tools. Do NOT use `claude mcp add` — that writes to Claude Code's config which Cursor cannot see.
-- In **Claude Code**: Write directly to `~/.claude/mcp.json`. Do NOT rely on `claude mcp add` because it writes to project-scoped config (`~/.claude.json` → `projects → {path} → mcpServers`) which may not persist across projects.
+- In **Claude Code**: The plugin's `mcpServers` in `plugin.json` auto-load with `${ENV_VAR}` resolution from the `env` block. So the setup only needs to ensure the env vars are SET. Try writing to **`~/.zshenv`** first (sourced for ALL zsh instances). If not writable (e.g., root-owned on managed machines), fall back to **`~/.zprofile`** (sourced for login shells — covers Claude Code CLI started from a terminal). Do NOT rely on `~/.zshrc` alone — it's only for interactive shells.
+- In **Cursor**: Plugin `mcpServers` don't apply. Write directly to `~/.cursor/mcp.json` using `Read` + `Write` tools with actual credential values.
 - **NEVER** just show instructions and ask the user to configure manually. Always write the file directly.
 
 ---
@@ -253,35 +254,49 @@ Ask the user:
   정보를 입력해주세요:
 ```
 
-#### 2d: AUTO-REGISTER — Write directly to MCP config
+#### 2d: AUTO-REGISTER
 
-**This is the critical step. The agent MUST directly modify the config file, not just show instructions.**
+**This is the critical step. The agent MUST directly modify the config, not just show instructions.**
 
-**Transport strategy (follows official plugin patterns):**
-- **GitLab**: Try HTTP transport first (`{url}/api/v4/mcp`). If the server is GitLab 17.8+, this is the preferred method (same as official GitLab plugin). Fall back to `uvx mcp-gitlab` for older versions.
-- **Jira**: Always use `uvx mcp-atlassian` (no HTTP MCP endpoint available from Atlassian).
+---
 
-**For Cursor (`~/.cursor/mcp.json`):**
+**Path A — Claude Code (plugin mcpServers auto-loaded):**
+
+The plugin's `plugin.json` already declares `mcpServers` with `${ENV_VAR}` in `env` blocks. Claude Code resolves these from the shell environment. So setup only needs to **set the env vars**.
+
+1. Try writing to `~/.zshenv` first. If permission denied (e.g., root-owned), use `~/.zprofile` instead.
+2. Check if `GITLAB_URL`, `GITLAB_TOKEN`, `JIRA_URL`, `JIRA_PERSONAL_TOKEN` are already exported in the target file
+3. Append missing exports:
+
+```bash
+# Punch — GitLab & Jira credentials (for Claude Code plugin MCP)
+export GITLAB_URL="<collected-url>"
+export GITLAB_TOKEN="<collected-token>"
+export JIRA_URL="<collected-url>"
+export JIRA_PERSONAL_TOKEN="<collected-token>"
+```
+
+4. Tell user to restart Claude Code (`/exit` then re-launch `claude`)
+
+**Shell config file priority:**
+
+| File | Sourced when | Best for |
+|------|-------------|----------|
+| `~/.zshenv` | ALL zsh instances | Preferred (but may be root-owned) |
+| `~/.zprofile` | Login shells | Fallback — covers `claude` CLI started from terminal |
+| `~/.zshrc` | Interactive shells only | NOT reliable for MCP server processes |
+
+---
+
+**Path B — Cursor (write actual values to mcp.json):**
+
+Plugin `mcpServers` don't apply in Cursor. Write directly to `~/.cursor/mcp.json`:
 
 1. Read the existing `~/.cursor/mcp.json` file
 2. Parse the JSON
 3. Add the missing server(s) to `mcpServers`:
 
-GitLab — HTTP transport (preferred, matches official GitLab plugin pattern):
-
-```json
-{
-  "gitlab": {
-    "type": "http",
-    "url": "<collected-url>/api/v4/mcp",
-    "headers": {
-      "Authorization": "Bearer <collected-token>"
-    }
-  }
-}
-```
-
-GitLab — uvx fallback (if HTTP fails or server is pre-17.8):
+GitLab:
 
 ```json
 {
@@ -296,7 +311,7 @@ GitLab — uvx fallback (if HTTP fails or server is pre-17.8):
 }
 ```
 
-Jira (uses `mcp-atlassian` PyPI package — check if it already exists under keys like `Confluence`, `jira`, `atlassian`):
+Jira (check if it already exists under keys like `Confluence`, `jira`, `atlassian`):
 
 ```json
 {
@@ -313,20 +328,40 @@ Jira (uses `mcp-atlassian` PyPI package — check if it already exists under key
 
 4. Write the updated JSON back to `~/.cursor/mcp.json`
 5. Preserve ALL existing servers — only add new ones
+6. Tell user to reload Cursor (Cmd+Shift+P → "Reload Window")
 
-**For Claude Code (`~/.claude/mcp.json`):**
+---
 
-Same approach — read, merge, write. Same transport strategy.
-
-**IMPORTANT RULES:**
+**IMPORTANT RULES (both paths):**
 - NEVER overwrite existing servers
 - NEVER remove other MCP servers from the config
-- NEVER use `npx` — always use `uvx` for local processes to avoid npm permission issues
-- Prefer HTTP transport for GitLab when possible
-- ALWAYS use `Read` tool to get current file, parse JSON, add new keys, then `Write` tool
-- If file doesn't exist, create it with `{ "mcpServers": { ... } }`
+- NEVER use `npx` — always use `uvx` for local processes
+- ALWAYS use `Read` tool to get current file content first
+- For `~/.zshenv`: only append, never overwrite existing exports
+- For `~/.cursor/mcp.json`: if file doesn't exist, create with `{ "mcpServers": { ... } }`
 
 #### 2e: Show Result
+
+**Claude Code:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  환경변수 등록 완료
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ~/.zshenv 에 추가됨:
+  ├─ GITLAB_URL           https://gitlab.example.com
+  ├─ GITLAB_TOKEN         ****
+  ├─ JIRA_URL             https://jira.example.com
+  └─ JIRA_PERSONAL_TOKEN  ****
+
+  다음 단계: Claude Code를 재시작하세요.
+  /exit → claude 다시 실행
+  
+  재시작 후 Punch 플러그인의 MCP 서버가 자동으로 연결됩니다.
+```
+
+**Cursor:**
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -337,7 +372,7 @@ Same approach — read, merge, write. Same transport strategy.
   Jira     [-] 이미 존재 (mcp-atlassian)
 
   Cursor를 재시작해야 새 MCP 서버가 활성화됩니다.
-  Cmd+Shift+P → "Reload Window" 또는 Cursor 재시작
+  Cmd+Shift+P → "Reload Window"
 ```
 
 ---
@@ -455,7 +490,26 @@ Make test calls to each tool.
   Jira API     [✓] OK        company.atlassian.net
 ```
 
-**Check 3: uvx health**
+**Check 3: Environment Variables**
+
+```bash
+echo "GITLAB_URL=${GITLAB_URL:-NOT_SET}"
+echo "GITLAB_TOKEN=${GITLAB_TOKEN:+SET}"
+echo "JIRA_URL=${JIRA_URL:-NOT_SET}"
+echo "JIRA_PERSONAL_TOKEN=${JIRA_PERSONAL_TOKEN:+SET}"
+```
+
+```
+  Environment Variables:
+  GITLAB_URL              [✓] https://gitlab.example.com
+  GITLAB_TOKEN            [✓] set
+  JIRA_URL                [✓] https://jira.example.com
+  JIRA_PERSONAL_TOKEN     [✓] set
+```
+
+If any are NOT_SET, check `~/.zshenv` for the exports.
+
+**Check 4: uvx health**
 
 ```bash
 uvx --version 2>&1
@@ -469,13 +523,14 @@ python3 --version 2>&1
   pip           [✓] available
 ```
 
-**Check 4: Summary**
+**Check 5: Summary**
 
 ```
   Summary:
   Status:   [✓] All checks passed
   
   만약 문제가 있다면:
+  env vars 미설정 → /punch:setup 으로 ~/.zshenv 에 추가
   uvx 미설치 → pip install uv 또는 https://docs.astral.sh/uv/
   Python 미설치 → brew install python3
 ```

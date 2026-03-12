@@ -293,9 +293,8 @@ Run `/punch:setup` — it first checks if you already have GitLab/Jira tools ava
 ```
 punch/
 ├── .claude-plugin/
-│   ├── plugin.json          Plugin manifest (metadata only)
+│   ├── plugin.json          Plugin manifest + mcpServers (official pattern)
 │   └── marketplace.json     Marketplace distribution
-├── .mcp.json                MCP server declarations (separate file)
 ├── commands/
 │   ├── sync.md              <- main command
 │   ├── sync-worklog.md      Worklog-only mode
@@ -311,20 +310,31 @@ punch/
     └── help/                Command reference
 ```
 
-**Architecture — follows official plugin patterns:**
+**How MCP works — official plugin pattern:**
 
-Punch's MCP configuration follows the same pattern as official Claude Code plugins:
+Punch declares MCP servers in `plugin.json` using `${ENV_VAR}` in the `env` block — the [official Claude Code pattern](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers). The `env` block resolves shell environment variables correctly (confirmed in Claude Code v2.0.72+).
 
-| Pattern | Used by | How Punch uses it |
-|---------|---------|-------------------|
-| Separate `.mcp.json` file | GitLab, GitHub, Slack, Playwright | MCP declarations live in `.mcp.json`, not `plugin.json` |
-| HTTP transport (`"type": "http"`) | GitLab, GitHub, Slack | GitLab via `{url}/api/v4/mcp` (17.8+) |
-| Local process (`"command"`) | Playwright, Context7 | Jira via `uvx mcp-atlassian` |
-| `${ENV_VAR}` placeholders | GitHub, Slack | Credentials via environment variables |
+```
+  Claude Code                              Cursor
+  ┌──────────────────┐                     ┌──────────────────┐
+  │ plugin.json      │                     │ ~/.cursor/mcp.json│
+  │ mcpServers:      │                     │ mcpServers:       │
+  │   env:           │                     │   gitlab:         │
+  │     ${JIRA_URL}  │◄─ ~/.zshenv        │     url: actual   │
+  │     ${GITLAB_URL}│   (env vars)        │   jira:           │
+  └──────────────────┘                     │     url: actual   │
+                                           └──────────────────┘
+                                           ▲ /punch:setup writes
+```
 
-**Why `uvx`, not `npx`?**
+| Runtime | MCP source | Setup writes to |
+|---------|-----------|-----------------|
+| **Claude Code** | `plugin.json` mcpServers (auto) | `~/.zshenv` (env vars) |
+| **Cursor** | `~/.cursor/mcp.json` (manual) | `~/.cursor/mcp.json` (actual values) |
 
-`npx` (Node.js) frequently fails with `npm EACCES` permission errors when `~/.npm` has root-owned files — a common issue on managed machines. Punch uses `uvx` (Python/uv) for local process servers. No npm cache, no permission errors.
+**Why `~/.zshenv` not `~/.zshrc`?** Claude Code spawns MCP servers as non-interactive processes. `~/.zshrc` is only loaded for interactive shells. `~/.zshenv` is loaded for ALL zsh processes.
+
+**Why `uvx`, not `npx`?** `npx` fails with `npm EACCES` permission errors. `uvx` (Python/uv) has no such issues.
 
 ---
 
