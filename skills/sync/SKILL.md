@@ -47,18 +47,18 @@ Try a lightweight read-only call for each:
 
   ■ Connections
   │
-  ├─ GitLab   ● ready     via Cursor plugin
-  └─ Jira     ● ready     via Confluence MCP
+  ├─ GitLab   🟢 ready     via Cursor plugin
+  └─ Jira     🟢 ready     via Confluence MCP
 ```
 
 ### Failure handling
 
 | Situation | Display |
 |-----------|---------|
-| No GitLab tools | `├─ GitLab   ○ missing` → guide to `/punch:setup` |
-| No Jira tools | `└─ Jira     ○ missing` → guide to `/punch:setup` |
-| GitLab auth error | `├─ GitLab   ✗ auth failed` → check token |
-| Jira auth error | `└─ Jira     ✗ auth failed` → check token |
+| No GitLab tools | `├─ GitLab   ⚪ missing` → guide to `/punch:setup` |
+| No Jira tools | `└─ Jira     ⚪ missing` → guide to `/punch:setup` |
+| GitLab auth error | `├─ GitLab   🔴 auth failed` → check token |
+| Jira auth error | `└─ Jira     🔴 auth failed` → check token |
 | GitLab OK, Jira missing | Offer dry-run mode (preview without writing) |
 | Both missing | Guide to `/punch:setup` |
 
@@ -357,8 +357,8 @@ For each approved transition, call `jira_transition_issue`:
 ```
   ■ Executing — Issue Updates
   │
-  ├─ PROJ-101   In Progress → Done        ● done
-  └─ PROJ-310   To Do → In Progress       ● done
+  ├─ PROJ-101   In Progress → Done        🟢 done
+  └─ PROJ-310   To Do → In Progress       🟢 done
 ```
 
 If a transition fails (e.g., required field missing), report the error and continue.
@@ -372,8 +372,8 @@ For each approved comment, call `jira_add_comment`:
 ```
   ■ Executing — Comments
   │
-  ├─ PROJ-101   MR !42 merged             ● done
-  └─ PROJ-205   MR !38 created            ● done
+  ├─ PROJ-101   MR !42 merged             🟢 done
+  └─ PROJ-205   MR !38 created            🟢 done
 ```
 
 ### 10c: Worklogs
@@ -387,9 +387,9 @@ For each approved worklog, call `jira_add_worklog`:
 ```
   ■ Executing — Worklogs
   │
-  ├─ PROJ-101   3h 45m                    ● done
-  ├─ PROJ-205   1h 30m                    ● done
-  └─ PROJ-310   15m                       ● done
+  ├─ PROJ-101   3h 45m                    🟢 done
+  ├─ PROJ-205   1h 30m                    🟢 done
+  └─ PROJ-310   15m                       🟢 done
 ```
 
 ---
@@ -428,7 +428,7 @@ Check history on future runs to detect already-synced dates.
 
 ```
 ╭─────────────────────────────────────────────╮
-│   ✓ Punch — Complete                        │
+│   ✅ Punch — Complete                        │
 ╰─────────────────────────────────────────────╯
 
   ■ Results

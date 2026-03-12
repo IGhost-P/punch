@@ -30,7 +30,7 @@ Detect Jira tools (same as `/punch:sync` — tool-agnostic, any source).
 
   ■ Connections
   │
-  └─ Jira     ● ready     via Confluence MCP
+  └─ Jira     🟢 ready     via Confluence MCP
 ```
 
 - OK → proceed

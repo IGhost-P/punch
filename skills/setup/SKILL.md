@@ -88,10 +88,10 @@ Try these patterns in order:
 
   ■ Tool Detection
   │
-  ├─ GitLab   ● ready     via Cursor GitLab plugin
-  └─ Jira     ● ready     via Confluence MCP
+  ├─ GitLab   🟢 ready     via Cursor GitLab plugin
+  └─ Jira     🟢 ready     via Confluence MCP
 
-  ✓ Both tools available — no setup needed!
+  ✅ Both tools available — no setup needed!
 ```
 
 → Skip to **Step 4 (Verification)**.
@@ -105,8 +105,8 @@ Try these patterns in order:
 
   ■ Tool Detection
   │
-  ├─ GitLab   ● ready     via Cursor GitLab plugin
-  └─ Jira     ○ missing
+  ├─ GitLab   🟢 ready     via Cursor GitLab plugin
+  └─ Jira     ⚪ missing
 
   → Jira 도구를 설정해야 합니다.
 ```
@@ -122,8 +122,8 @@ Try these patterns in order:
 
   ■ Tool Detection
   │
-  ├─ GitLab   ○ missing
-  └─ Jira     ○ missing
+  ├─ GitLab   ⚪ missing
+  └─ Jira     ⚪ missing
 
   → 둘 다 설정이 필요합니다. 걱정 마세요, 2분이면 됩니다!
 ```
@@ -237,7 +237,7 @@ If npx fails, show specific fix:
 ```
   ■ npx 사전 점검
   │
-  └─ ✗ 문제 발견
+  └─ 🔴 문제 발견
   
   {specific error and fix — see table below}
 ```
@@ -269,8 +269,8 @@ claude mcp add punch-jira \
 ```
   ■ Registration
   │
-  ├─ punch-gitlab   ● registered
-  └─ punch-jira     ● registered
+  ├─ punch-gitlab   🟢 registered
+  └─ punch-jira     🟢 registered
 ```
 
 #### Option C: Manual
@@ -329,8 +329,8 @@ On "완료" → re-run Step 1 detection.
 
   ■ Connections
   │
-  ├─ GitLab   ● connected   @username
-  └─ Jira     ● connected   company.atlassian.net
+  ├─ GitLab   🟢 connected   @username
+  └─ Jira     🟢 connected   company.atlassian.net
 
   ■ Quick Start
   │
@@ -348,8 +348,8 @@ On "완료" → re-run Step 1 detection.
 ```
   ■ Connection Test
   │
-  ├─ GitLab   ● connected
-  └─ Jira     ✗ failed     401 Unauthorized
+  ├─ GitLab   🟢 connected
+  └─ Jira     🔴 failed     401 Unauthorized
 
   Jira API 토큰이 만료되었거나 잘못되었을 수 있습니다.
   확인: https://id.atlassian.com/manage-profile/security/api-tokens
@@ -374,9 +374,9 @@ Scan all available tool namespaces. Report what was found.
 ```
   ■ Available Tools
   │
-  ├─ GitLab   ● found      user-gitlab-* (3 tools)
-  ├─ Jira     ● found      user-Confluence-jira_* (40 tools)
-  └─ Other    ○ none
+  ├─ GitLab   🟢 found      user-gitlab-* (3 tools)
+  ├─ Jira     🟢 found      user-Confluence-jira_* (40 tools)
+  └─ Other    ⚪ none
 ```
 
 **Check 2: Connectivity**
@@ -386,8 +386,8 @@ Make test calls to each tool.
 ```
   ■ Connectivity
   │
-  ├─ GitLab API   ● OK        as @swyang
-  └─ Jira API     ● OK        company.atlassian.net
+  ├─ GitLab API   🟢 OK        as @swyang
+  └─ Jira API     🟢 OK        company.atlassian.net
 ```
 
 **Check 3: npx health (only if npx-based MCP servers detected)**
@@ -401,10 +401,10 @@ npm ping 2>&1
 ```
   ■ npx Health (Claude Code MCP uses npx)
   │
-  ├─ Node.js       ● v20.11.0
-  ├─ npx           ● available
-  ├─ npm cache     ✗ EACCES
-  └─ npm registry  ● reachable
+  ├─ Node.js       🟢 v20.11.0
+  ├─ npx           🟢 available
+  ├─ npm cache     🔴 EACCES
+  └─ npm registry  🟢 reachable
 ```
 
 **Check 4: Summary**
@@ -412,7 +412,7 @@ npm ping 2>&1
 ```
   ■ Summary
   │
-  ├─ Status:   ✗ 1 issue found
+  ├─ Status:   🔴 1 issue found
   ├─ Cause:    npm 캐시 권한 문제
   └─ Fix:      sudo chown -R $(whoami) ~/.npm
   

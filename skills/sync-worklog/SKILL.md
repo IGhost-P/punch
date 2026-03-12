@@ -39,13 +39,13 @@ Detect tools by trying a lightweight read-only call:
 
   ■ Connections
   │
-  ├─ GitLab   ● ready     via Cursor plugin
-  └─ Jira     ● ready     via Confluence MCP
+  ├─ GitLab   🟢 ready     via Cursor plugin
+  └─ Jira     🟢 ready     via Confluence MCP
 ```
 
 - Both OK → proceed
-- Tool missing → show with `○ missing` and guide to `/punch:setup`
-- Auth error → show with `✗ auth failed` and suggest token check
+- Tool missing → show with `⚪ missing` and guide to `/punch:setup`
+- Auth error → show with `🔴 auth failed` and suggest token check
 
 **Remember the detected tool names** for use in subsequent steps.
 
@@ -271,10 +271,10 @@ Show progress as each entry is recorded:
 ```
   ■ Recording...
   │
-  ├─ PROJ-101   3h 45m   ● done
-  ├─ PROJ-205   1h 30m   ● done
-  ├─ PROJ-310   15m      ● done
-  └─ PROJ-415   30m      ● done
+  ├─ PROJ-101   3h 45m   🟢 done
+  ├─ PROJ-205   1h 30m   🟢 done
+  ├─ PROJ-310   15m      🟢 done
+  └─ PROJ-415   30m      🟢 done
 ```
 
 ---
@@ -316,7 +316,7 @@ On subsequent runs, check history first to detect already-synced dates and warn:
 
 ```
 ╭─────────────────────────────────────────────╮
-│   ✓ Punch — Complete                        │
+│   ✅ Punch — Complete                        │
 ╰─────────────────────────────────────────────╯
 
   ■ Results
