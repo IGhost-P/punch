@@ -1,4 +1,6 @@
+<div align="center">
 ◯ ─────────── ◯
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/97ae08bd-4ccf-495f-9f9a-e17751d52b6f" />
 
 **P U N C H**
 
@@ -8,6 +10,8 @@
 A Claude Code plugin that reads your GitLab activity and syncs it to Jira — worklogs, status transitions, comments. One command. Your approval.
 
 [Quick Start](#quick-start) · [How it Works](#the-flow) · [Commands](#commands) · [Features](#features)
+
+</div>
 
 ---
 
