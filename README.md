@@ -293,9 +293,9 @@ Run `/punch:setup` — it first checks if you already have GitLab/Jira tools ava
 ```
 punch/
 ├── .claude-plugin/
-│   ├── plugin.json          Plugin manifest (no bundled MCP)
+│   ├── plugin.json          Plugin manifest (metadata only)
 │   └── marketplace.json     Marketplace distribution
-├── .mcp.json.example        Reference MCP config (optional)
+├── .mcp.json                MCP server declarations (separate file)
 ├── commands/
 │   ├── sync.md              <- main command
 │   ├── sync-worklog.md      Worklog-only mode
@@ -311,11 +311,20 @@ punch/
     └── help/                Command reference
 ```
 
-**Why uvx, not npx?**
+**Architecture — follows official plugin patterns:**
 
-`npx` (Node.js) frequently fails with `npm EACCES` permission errors when `~/.npm` has root-owned files — a common issue on managed machines.
+Punch's MCP configuration follows the same pattern as official Claude Code plugins:
 
-Punch uses `uvx` (Python/uv) for all MCP servers, just like Ouroboros. No npm cache, no permission errors. The `plugin.json` declares `mcpServers` with `uvx mcp-gitlab` and `uvx mcp-atlassian` — both are auto-registered when the plugin is installed in Claude Code. For Cursor, `/punch:setup` writes directly to `~/.cursor/mcp.json`.
+| Pattern | Used by | How Punch uses it |
+|---------|---------|-------------------|
+| Separate `.mcp.json` file | GitLab, GitHub, Slack, Playwright | MCP declarations live in `.mcp.json`, not `plugin.json` |
+| HTTP transport (`"type": "http"`) | GitLab, GitHub, Slack | GitLab via `{url}/api/v4/mcp` (17.8+) |
+| Local process (`"command"`) | Playwright, Context7 | Jira via `uvx mcp-atlassian` |
+| `${ENV_VAR}` placeholders | GitHub, Slack | Credentials via environment variables |
+
+**Why `uvx`, not `npx`?**
+
+`npx` (Node.js) frequently fails with `npm EACCES` permission errors when `~/.npm` has root-owned files — a common issue on managed machines. Punch uses `uvx` (Python/uv) for local process servers. No npm cache, no permission errors.
 
 ---
 

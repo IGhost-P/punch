@@ -1,0 +1,17 @@
+{
+  "gitlab": {
+    "type": "http",
+    "url": "${GITLAB_URL}/api/v4/mcp",
+    "headers": {
+      "Authorization": "Bearer ${GITLAB_TOKEN}"
+    }
+  },
+  "jira": {
+    "command": "uvx",
+    "args": ["mcp-atlassian"],
+    "env": {
+      "JIRA_URL": "${JIRA_URL}",
+      "JIRA_PERSONAL_TOKEN": "${JIRA_PERSONAL_TOKEN}"
+    }
+  }
+}

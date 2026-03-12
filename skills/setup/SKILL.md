@@ -21,9 +21,17 @@ Guided onboarding that connects your GitLab and Jira accounts.
 
 ## Design Principle
 
-**Detect first, install only if needed. Always use `uvx`, never `npx`.**
+**Detect first, install only if needed. Follow official plugin patterns.**
 
-Punch declares MCP servers in `plugin.json` for auto-registration in Claude Code. For Cursor, it detects existing tools or writes directly to `~/.cursor/mcp.json`. All servers use `uvx` (Python) to avoid npm/npx EACCES permission issues. If tools are already available from any source (Cursor MCP, Claude Code MCP, IDE plugins), Punch reuses them.
+Punch declares MCP servers in `.mcp.json` (separate file, not inline in `plugin.json`) — matching the pattern used by official Claude Code plugins (GitLab, GitHub, Slack, Playwright).
+
+**Transport priority:**
+1. **HTTP transport** (`"type": "http"`) — preferred when the server exposes a remote MCP endpoint (e.g., GitLab 17.8+ at `{url}/api/v4/mcp`)
+2. **Local process** (`"command": "uvx"`) — fallback for self-hosted servers or services without HTTP MCP endpoints (e.g., Jira via `mcp-atlassian`)
+
+**Never use `npx`** — it has widespread EACCES permission issues. Use `uvx` (Python) for local processes.
+
+If tools are already available from any source (Cursor MCP, Claude Code MCP, IDE plugins), Punch reuses them.
 
 ---
 
@@ -249,7 +257,9 @@ Ask the user:
 
 **This is the critical step. The agent MUST directly modify the config file, not just show instructions.**
 
-**ALL servers use `uvx` (Python). NEVER use `npx` — it has widespread EACCES permission issues.**
+**Transport strategy (follows official plugin patterns):**
+- **GitLab**: Try HTTP transport first (`{url}/api/v4/mcp`). If the server is GitLab 17.8+, this is the preferred method (same as official GitLab plugin). Fall back to `uvx mcp-gitlab` for older versions.
+- **Jira**: Always use `uvx mcp-atlassian` (no HTTP MCP endpoint available from Atlassian).
 
 **For Cursor (`~/.cursor/mcp.json`):**
 
@@ -257,7 +267,21 @@ Ask the user:
 2. Parse the JSON
 3. Add the missing server(s) to `mcpServers`:
 
-GitLab (uses `mcp-gitlab` PyPI package):
+GitLab — HTTP transport (preferred, matches official GitLab plugin pattern):
+
+```json
+{
+  "gitlab": {
+    "type": "http",
+    "url": "<collected-url>/api/v4/mcp",
+    "headers": {
+      "Authorization": "Bearer <collected-token>"
+    }
+  }
+}
+```
+
+GitLab — uvx fallback (if HTTP fails or server is pre-17.8):
 
 ```json
 {
@@ -292,12 +316,13 @@ Jira (uses `mcp-atlassian` PyPI package — check if it already exists under key
 
 **For Claude Code (`~/.claude/mcp.json`):**
 
-Same approach — read, merge, write. Use identical `uvx` commands.
+Same approach — read, merge, write. Same transport strategy.
 
 **IMPORTANT RULES:**
 - NEVER overwrite existing servers
 - NEVER remove other MCP servers from the config
-- NEVER use `npx` — always use `uvx` to avoid npm permission issues
+- NEVER use `npx` — always use `uvx` for local processes to avoid npm permission issues
+- Prefer HTTP transport for GitLab when possible
 - ALWAYS use `Read` tool to get current file, parse JSON, add new keys, then `Write` tool
 - If file doesn't exist, create it with `{ "mcpServers": { ... } }`
 
