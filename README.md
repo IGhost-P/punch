@@ -29,18 +29,17 @@ Most developers log worklogs at end-of-day from memory. Punch does it from evide
 
 ```
     GitLab                              Jira
-      🔍                                 ✍️
 
-  commits          ──→  📋  worklogs
-  merge requests   ──→  🔄  status transitions
-  code reviews     ──→  💬  comments
-  issue activity         │
-                         ▼
-                    ┌──────────┐
-                    │ PREVIEW  │
-                    │ you edit │
-                    │ you OK   │
-                    └──────────┘
+  commits          -->  worklogs
+  merge requests   -->  status transitions
+  code reviews     -->  comments
+  issue activity         |
+                         v
+                    +-----------+
+                    |  PREVIEW  |
+                    |  you edit |
+                    |  you OK   |
+                    +-----------+
 ```
 
 One preview. Three types of updates. Full control.
@@ -52,12 +51,12 @@ One preview. Three types of updates. Full control.
 **What just happened?**
 
 ```
-/punch:sync       →  Fetched 7 commits, 2 MRs, 3 reviews
-                  →  Detected PROJ-101, PROJ-205, PROJ-310
-                  →  Learned your Korean freetext worklog style
-                  →  Proposed 3 worklogs, 2 transitions, 1 comment
-                  →  You approved with "확인"
-                  →  Done. 5h 30m logged across 3 issues.
+/punch:sync       ->  Fetched 7 commits, 2 MRs, 3 reviews
+                  ->  Detected PROJ-101, PROJ-205, PROJ-310
+                  ->  Learned your Korean freetext worklog style
+                  ->  Proposed 3 worklogs, 2 transitions, 1 comment
+                  ->  You approved with "확인"
+                  ->  Done. 5h 30m logged across 3 issues.
 ```
 
 ---
@@ -77,7 +76,7 @@ claude plugin install punch@punch
 /punch:setup
 ```
 
-> Setup **detects your existing tools first**. Already have GitLab/Jira MCP? Punch uses them as-is — no extra tokens, no extra servers.
+> Setup **detects your existing tools first**. Already have GitLab/Jira MCP? Punch uses them as-is — no extra tokens, no extra servers. If tools are missing, setup **automatically registers** them in your MCP config.
 
 **Step 3 — Sync your day:**
 
@@ -92,26 +91,25 @@ claude plugin install punch@punch
 Punch doesn't bundle MCP servers. It detects and uses whatever GitLab/Jira tools are already available:
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Punch Setup                             │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Punch Setup — Tool Detection
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Tool Detection
-  │
-  ├─ GitLab   🟢 ready     via Cursor GitLab plugin
-  └─ Jira     🟢 ready     via Confluence MCP
+  GitLab   [✓] ready     via Cursor GitLab plugin
+  Jira     [✓] ready     via Confluence MCP
 
-  ✅ Both tools available — no setup needed!
+  Both tools available — no setup needed!
 ```
 
-If nothing is found, setup guides you through adding them:
+If nothing is found, setup **auto-registers** the MCP servers:
 
 ```
-  ■ Setup Method
-  │
-  ├─ A ─ Cursor MCP 설정에서 추가        ← 권장
-  ├─ B ─ Claude Code MCP로 추가
-  └─ C ─ 직접 설정할게요
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MCP 서버 등록 완료
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  GitLab   [✓] ~/.cursor/mcp.json 에 추가됨
+  Jira     [-] 이미 존재 (mcp-atlassian)
 ```
 
 | Source                | GitLab | Jira | npx needed? |
@@ -128,12 +126,11 @@ If nothing is found, setup guides you through adding them:
 This is what you see before anything is written:
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Punch Sync — 2026-03-12                 │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Punch Sync — 2026-03-12
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Worklogs
-  │
+  Worklogs:
   ├─ 1  PROJ-101   3h 45m   5 commits, MR !42 merged
   │     "Dashboard 위젯 구현 및 MR !42 머지"
   │
@@ -143,33 +140,31 @@ This is what you see before anything is written:
   └─ 3  PROJ-310   15m      1 issue comment
         "성능 튜닝 이슈 코멘트"
 
-  ■ Issue Updates
-  │
+  Issue Updates:
   ├─ 4  PROJ-101   In Progress → Done        MR !42 merged
   └─ 5  PROJ-310   To Do → In Progress       branch created
 
-  ■ Comments
-  │
+  Comments:
   └─ 6  PROJ-101   MR !42 merged → main (+230/-45)
 
-╭─────────────────────────────────────────────╮
-│  3 worklogs · 2 transitions · 1 comment     │
-│  Total: 5h 30m                              │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  3 worklogs · 2 transitions · 1 comment
+  Total: 5h 30m
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   이대로 진행할까요?
 ```
 
 Your options:
 
-| Input                | What happens                  |
-|----------------------|-------------------------------|
-| "확인" / "yes"         | Execute all                   |
-| "1번 2시간으로"           | Adjust time for entry #1      |
-| "#5 빼줘"              | Remove entry #5               |
-| "워크로그만"              | Execute only worklogs section |
-| "코멘트 빼줘"             | Skip all comments             |
-| "취소"                 | Abort — nothing is written    |
+| Input            | What happens                  |
+|------------------|-------------------------------|
+| "확인" / "yes"   | Execute all                   |
+| "1번 2시간으로"  | Adjust time for entry #1      |
+| "#5 빼줘"        | Remove entry #5               |
+| "워크로그만"     | Execute only worklogs section |
+| "코멘트 빼줘"    | Skip all comments             |
+| "취소"           | Abort — nothing is written    |
 
 ---
 
@@ -177,22 +172,22 @@ Your options:
 
 > All commands run inside a Claude Code session. Run `/punch:setup` after installation to verify tools.
 
-| Command                 | What It Does                                           |
-|-------------------------|--------------------------------------------------------|
-| `/punch:sync`           | Full sync — worklogs + status transitions + comments   |
-| `/punch:sync-worklog`   | Worklogs only (time logging)                           |
-| `/punch:worklog-report` | View existing worklogs + spot duplicates               |
-| `/punch:setup`          | Detect tools or connect GitLab + Jira                  |
-| `/punch:help`           | Full reference                                         |
+| Command                 | What It Does                                         |
+|-------------------------|------------------------------------------------------|
+| `/punch:sync`           | Full sync — worklogs + status transitions + comments |
+| `/punch:sync-worklog`   | Worklogs only (time logging)                         |
+| `/punch:worklog-report` | View existing worklogs + spot duplicates             |
+| `/punch:setup`          | Detect tools or connect GitLab + Jira                |
+| `/punch:help`           | Full reference                                       |
 
 Natural language triggers:
 
-| Say this                   | Runs this                         |
-|----------------------------|-----------------------------------|
-| "오늘 정리해줘"                  | `/punch:sync today`               |
-| "워크로그만 기록"                 | `/punch:sync-worklog today`       |
-| "이번 주 기록 확인"               | `/punch:worklog-report this-week` |
-| "punch in"                 | `/punch:sync today`               |
+| Say this              | Runs this                         |
+|-----------------------|-----------------------------------|
+| "오늘 정리해줘"       | `/punch:sync today`               |
+| "워크로그만 기록"     | `/punch:sync-worklog today`       |
+| "이번 주 기록 확인"   | `/punch:worklog-report this-week` |
+| "punch in"            | `/punch:sync today`               |
 
 ---
 
@@ -204,22 +199,22 @@ Natural language triggers:
 
 Punch analyzes your recent Jira worklogs and matches the style:
 
-| Dimension      | What it detects                                 |
-|----------------|-------------------------------------------------|
-| **Language**   | Korean / English / Mixed                        |
-| **Format**     | Bullet list / Free text / Tag prefix            |
-| **Detail**     | Minimal ("작업 완료") / Moderate / Detailed         |
-| **References** | MR numbers, commit counts, line changes         |
+| Dimension      | What it detects                             |
+|----------------|---------------------------------------------|
+| **Language**   | Korean / English / Mixed                    |
+| **Format**     | Bullet list / Free text / Tag prefix        |
+| **Detail**     | Minimal ("작업 완료") / Moderate / Detailed |
+| **References** | MR numbers, commit counts, line changes     |
 
 Style is saved to `~/.punch/prefs.json` and reused on future runs.
 
 ### Issue Transitions
 
 ```
-  Branch created   ──→   To Do → In Progress
-  MR created       ──→   In Progress → In Review
-  MR merged        ──→   In Review → Done
-  Issue closed     ──→   → Done
+  Branch created   -->   To Do → In Progress
+  MR created       -->   In Progress → In Review
+  MR merged        -->   In Review → Done
+  Issue closed     -->   → Done
 ```
 
 Safety:
@@ -233,8 +228,7 @@ Safety:
 Not every team puts `PROJ-101` in their commits. Punch handles this:
 
 ```
-  ■ Unlinked Activity
-  │
+  Unlinked Activity:
   ├─ 1  "fix dropdown alignment" (3 commits)
   │     → PROJ-101 드롭다운 UI 개선?
   │
@@ -263,8 +257,7 @@ When Jira isn't connected, Punch still works — it shows you the preview withou
 ## Safety
 
 ```
-  ■ Guarantees
-  │
+  Guarantees:
   ├─ Nothing auto-writes       you always confirm
   ├─ Duplicate detection        checks Jira + local history
   ├─ Execution order            transitions → comments → worklogs
@@ -282,7 +275,7 @@ When Jira isn't connected, Punch still works — it shows you the preview withou
 | GitLab  | Personal Access Token                                                    | `read_api`, `read_repository` |
 | Jira    | [API Token](https://id.atlassian.com/manage-profile/security/api-tokens) | default (full access)         |
 
-Run `/punch:setup` — it first checks if you already have GitLab/Jira tools available. If you do, no tokens are needed. If not, it guides you through setup.
+Run `/punch:setup` — it first checks if you already have GitLab/Jira tools available. If you do, no tokens are needed. If not, it **auto-registers** MCP servers in your config file.
 
 ---
 
@@ -304,7 +297,7 @@ punch/
 │   └── marketplace.json     Marketplace distribution
 ├── .mcp.json.example        Reference MCP config (optional)
 ├── commands/
-│   ├── sync.md              ← main command
+│   ├── sync.md              <- main command
 │   ├── sync-worklog.md      Worklog-only mode
 │   ├── worklog-report.md    Report viewer
 │   ├── setup.md             Setup wizard

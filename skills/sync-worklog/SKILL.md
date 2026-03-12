@@ -22,30 +22,54 @@ For the full experience (worklogs + issue updates + comments), use `/punch:sync`
 
 ---
 
-## Pre-flight: Tool Detection
+## Pre-flight: Tool Detection (Multi-Layer)
 
 **Punch is tool-agnostic.** It uses whatever GitLab/Jira tools are available from any source.
 
-Detect tools by trying a lightweight read-only call:
+### Layer 1 — Direct Tool Call (highest confidence)
 
-**GitLab** — look for: `mcp__gitlab__*`, `mcp__punch-gitlab__*`, `user-*gitlab*`, or any tool that lists commits/projects.
+Actually call a read-only tool. If it returns data → `[✓] ready`.
 
-**Jira** — look for: `mcp__jira__*`, `mcp__punch-jira__*`, `user-Confluence-jira_*`, `user-*jira*`, or any tool named `jira_search`/`jira_add_worklog`.
+**GitLab** — try: `mcp__gitlab__*`, `mcp__punch-gitlab__*`, `user-*gitlab*`, or any tool that lists commits/projects.
+
+**Jira** — try: `mcp__jira__*`, `mcp__punch-jira__*`, `user-Confluence-jira_*`, `user-*jira*`, or any tool named `jira_search`/`jira_add_worklog`.
+
+Auth error → `[✗] auth failed`.
+
+### Layer 2 — Config File Scan (if Layer 1 found nothing)
+
+**Read these MCP config files** (ignore errors for missing files):
+
+| File                   | What to look for                                                        |
+|------------------------|-------------------------------------------------------------------------|
+| `~/.cursor/mcp.json`  | Keys containing `gitlab`/`GitLab` → GitLab; `jira`/`atlassian`/`Confluence` → Jira |
+| `~/.claude/mcp.json`  | Same patterns                                                           |
+| `~/.claude.json`      | Under `projects.*.mcpServers` → project-scoped registrations            |
+
+If found in config but tool call failed → `[~] registered, not connected`.
+
+### Layer 3 — Not Found
+
+Neither Layer 1 nor 2 → `[-] missing`.
+
+### Display
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Punch Sync-Worklog                      │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Punch Sync-Worklog
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Connections
-  │
-  ├─ GitLab   🟢 ready     via Cursor plugin
-  └─ Jira     🟢 ready     via Confluence MCP
+  Connections:
+  ├─ GitLab   [✓] ready     via Cursor plugin
+  └─ Jira     [✓] ready     via Confluence MCP
 ```
 
-- Both OK → proceed
-- Tool missing → show with `⚪ missing` and guide to `/punch:setup`
-- Auth error → show with `🔴 auth failed` and suggest token check
+| Status              | Action                                                    |
+|---------------------|-----------------------------------------------------------|
+| `[✓]` ready         | Proceed normally                                          |
+| `[~]` registered    | Ask user to reload Cursor/restart CLI, then re-detect     |
+| `[✗]` auth failed   | Suggest token check                                       |
+| `[-]` missing       | Guide to `/punch:setup`                                   |
 
 **Remember the detected tool names** for use in subsequent steps.
 
@@ -94,7 +118,7 @@ From the user's arguments:
 **Only use `git log` if ALL GitLab API calls fail.** Always show a warning:
 
 ```
-  ⚠️  GitLab API 호출 실패 — 로컬 git log로 대체합니다.
+  [!] GitLab API 호출 실패 — 로컬 git log로 대체합니다.
       MR, 코드 리뷰, 이슈 활동은 확인할 수 없습니다.
 ```
 
@@ -105,8 +129,7 @@ From the user's arguments:
 Show what was found and let the user choose what to include:
 
 ```
-  ■ GitLab Activity — 2026-03-12
-  │
+  GitLab Activity — 2026-03-12:
   ├─ Commits        7   PROJ-101: fix dropdown alignment
   ├─ MR Created     1   !42 [PROJ-101] Dashboard widget
   ├─ MR Merged      1   !38 [PROJ-205] API response fix
@@ -154,40 +177,39 @@ For each issue key, call `jira_get_worklog`. Flag entries where:
 3. Analyze the comment style:
 
 ```
-  ■ Style Detection
-  │
+  Style Detection:
   └─ 기존 워크로그에서 양식을 분석 중...
 ```
 
 **Style dimensions to detect:**
 
-| Dimension | Examples | Possible values |
-|-----------|---------|-----------------|
-| **Language** | "커밋 3건", "3 commits" | Korean / English / Mixed |
-| **Format** | bullet list, free text, prefix tag | bullets / freetext / tag-prefix |
-| **Detail level** | "작업함" vs "PROJ-101 드롭다운 정렬 수정, 반응형 처리 포함" | minimal / moderate / detailed |
-| **Prefix** | `[DEV]`, `Punch:`, none | detected prefix or none |
-| **Time reference** | includes commit count, MR numbers, etc. | with-refs / without-refs |
+| Dimension          | Examples                                                       | Possible values                     |
+|--------------------|----------------------------------------------------------------|-------------------------------------|
+| **Language**       | "커밋 3건", "3 commits"                                         | Korean / English / Mixed            |
+| **Format**         | bullet list, free text, prefix tag                             | bullets / freetext / tag-prefix     |
+| **Detail level**   | "작업함" vs "PROJ-101 드롭다운 정렬 수정, 반응형 처리 포함"          | minimal / moderate / detailed       |
+| **Prefix**         | `[DEV]`, `Punch:`, none                                       | detected prefix or none             |
+| **Time reference** | includes commit count, MR numbers, etc.                        | with-refs / without-refs            |
 
 4. Build a `style_profile` object:
 
 ```
-Detected style:
-  Language:     Korean
-  Format:       freetext
-  Detail:       moderate
-  Prefix:       none
-  References:   includes MR numbers
-  Example:      "SVG viewport 줌/패닝 개선 및 엣지 케이스 수정"
+  Detected style:
+    Language:     Korean
+    Format:       freetext
+    Detail:       moderate
+    Prefix:       none
+    References:   includes MR numbers
+    Example:      "SVG viewport 줌/패닝 개선 및 엣지 케이스 수정"
 ```
 
 5. Show the detected style briefly and ask if it looks right:
 
 ```
-기존 워크로그 스타일을 감지했습니다:
-  → 한국어, 간결한 자유 텍스트, MR 번호 포함
+  기존 워크로그 스타일을 감지했습니다:
+    → 한국어, 간결한 자유 텍스트, MR 번호 포함
 
-이 스타일로 작성할까요? [Yes / 다른 스타일로]
+  이 스타일로 작성할까요? [Yes / 다른 스타일로]
 ```
 
 - If "Yes" or no response → use detected style
@@ -204,16 +226,16 @@ Detected style:
 
 **Per-activity defaults:**
 
-| Activity | Default Time |
-|----------|-------------|
-| Commit (with interval) | Gap to next commit, capped at 2h |
-| Commit (isolated) | 30m |
-| MR Created | 30m |
-| MR Merged | 15m |
-| Code Review comment | 15m per comment |
-| Issue comment | 15m |
-| Issue created | 20m |
-| Issue closed | 10m |
+| Activity                 | Default Time                        |
+|--------------------------|-------------------------------------|
+| Commit (with interval)   | Gap to next commit, capped at 2h   |
+| Commit (isolated)        | 30m                                 |
+| MR Created               | 30m                                 |
+| MR Merged                | 15m                                 |
+| Code Review comment      | 15m per comment                     |
+| Issue comment            | 15m                                 |
+| Issue created            | 20m                                 |
+| Issue closed             | 10m                                 |
 
 **Strategies:**
 - **A (default)**: Activity-based — commit intervals + per-activity estimates
@@ -229,12 +251,11 @@ Show Strategy A. If user says "좀 다른데" or estimates look off, offer B or 
 **CRITICAL: This is the approval gate. Do NOT call `jira_add_worklog` before this step.**
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Worklog Preview — 2026-03-12            │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Worklog Preview — 2026-03-12
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Entries
-  │
+  Entries:
   ├─ 1  PROJ-101   3h 45m   5 commits, MR !42
   │     "Dashboard 위젯 구현 및 MR !42 머지"
   │
@@ -247,11 +268,11 @@ Show Strategy A. If user says "좀 다른데" or estimates look off, offer B or 
   └─ 4  PROJ-415   30m      2 review comments on !45
         "!45 코드 리뷰 (2건)"
 
-╭─────────────────────────────────────────────╮
-│  4 entries · Total: 6h                      │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  4 entries · Total: 6h
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ⚠ PROJ-101: 이미 오늘 2h 워크로그 있음 (중복 가능)
+  [!] PROJ-101: 이미 오늘 2h 워크로그 있음 (중복 가능)
 
   이대로 기록할까요? 번호로 수정/제외 가능합니다.
 ```
@@ -279,12 +300,11 @@ For each approved entry, call `jira_add_worklog`:
 Show progress as each entry is recorded:
 
 ```
-  ■ Recording...
-  │
-  ├─ PROJ-101   3h 45m   🟢 done
-  ├─ PROJ-205   1h 30m   🟢 done
-  ├─ PROJ-310   15m      🟢 done
-  └─ PROJ-415   30m      🟢 done
+  Recording...
+  ├─ PROJ-101   3h 45m   [✓] done
+  ├─ PROJ-205   1h 30m   [✓] done
+  ├─ PROJ-310   15m      [✓] done
+  └─ PROJ-415   30m      [✓] done
 ```
 
 ---
@@ -314,10 +334,10 @@ Create `~/.punch/` directory if it doesn't exist.
 
 On subsequent runs, check history first to detect already-synced dates and warn:
 ```
-⚠️  2026-03-12 은 이미 동기화되었습니다 (6h, 4 issues).
-다시 동기화하면 중복 워크로그가 생길 수 있습니다.
+  [!] 2026-03-12 은 이미 동기화되었습니다 (6h, 4 issues).
+      다시 동기화하면 중복 워크로그가 생길 수 있습니다.
 
-계속할까요? [Yes / Skip / 다른 날짜로]
+  계속할까요? [Yes / Skip / 다른 날짜로]
 ```
 
 ---
@@ -325,12 +345,11 @@ On subsequent runs, check history first to detect already-synced dates and warn:
 ## Step 12: Summary
 
 ```
-╭─────────────────────────────────────────────╮
-│   ✅ Punch — Complete                        │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Punch — Complete!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Results
-  │
+  Results:
   ├─ PROJ-101   3h 45m
   ├─ PROJ-205   1h 30m
   ├─ PROJ-310   15m

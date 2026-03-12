@@ -20,47 +20,64 @@ The main command. Reads GitLab activity and proposes **three types of Jira updat
 
 ---
 
-## Pre-flight: Tool Detection
+## Pre-flight: Tool Detection (Multi-Layer)
 
 **Punch is tool-agnostic.** It uses whatever GitLab/Jira tools are already available — from IDE plugins, Claude Code MCP, Cursor MCP, or any source.
 
-### Detect Available Tools
+### Layer 1 — Direct Tool Call (highest confidence)
 
-Try a lightweight read-only call for each:
+Actually call a read-only tool. If it returns data → `[✓] ready`.
 
-**GitLab** — look for tools in this order:
+**GitLab** — try tools in this order:
 1. `mcp__gitlab__*` or `mcp__punch-gitlab__*` (Claude Code MCP)
 2. `user-*gitlab*` (Cursor/IDE MCP)
 3. Any tool that can list commits, list projects, or get a user
 
-**Jira** — look for tools in this order:
+**Jira** — try tools in this order:
 1. `mcp__jira__*` or `mcp__punch-jira__*` (Claude Code MCP)
 2. `user-Confluence-jira_*` or `user-*jira*` (Cursor/IDE MCP)
 3. Any tool named `jira_search`, `jira_add_worklog`, etc.
 
-**Test each by actually calling it.** A tool that exists but returns an auth error is not "connected."
+A tool that exists but returns an auth error → `[✗] auth failed`.
+
+### Layer 2 — Config File Scan (if Layer 1 found nothing)
+
+**Read these MCP config files** (use `Read` tool, ignore errors for missing files):
+
+| File                   | What to look for                                                        |
+|------------------------|-------------------------------------------------------------------------|
+| `~/.cursor/mcp.json`  | Keys containing `gitlab`/`GitLab` → GitLab; `jira`/`atlassian`/`Confluence` → Jira |
+| `~/.claude/mcp.json`  | Same patterns                                                           |
+| `~/.claude.json`      | Under `projects.*.mcpServers` → project-scoped registrations            |
+
+If found in config but tool call failed → `[~] registered, not connected`.
+
+### Layer 3 — Not Found
+
+Neither Layer 1 nor 2 → `[-] missing`.
+
+### Display
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Punch Sync                              │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Punch Sync
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Connections
-  │
-  ├─ GitLab   🟢 ready     via Cursor plugin
-  └─ Jira     🟢 ready     via Confluence MCP
+  Connections:
+  ├─ GitLab   [✓] ready     via Cursor plugin
+  └─ Jira     [✓] ready     via Confluence MCP
 ```
 
 ### Failure handling
 
-| Situation | Display |
-|-----------|---------|
-| No GitLab tools | `├─ GitLab   ⚪ missing` → guide to `/punch:setup` |
-| No Jira tools | `└─ Jira     ⚪ missing` → guide to `/punch:setup` |
-| GitLab auth error | `├─ GitLab   🔴 auth failed` → check token |
-| Jira auth error | `└─ Jira     🔴 auth failed` → check token |
-| GitLab OK, Jira missing | Offer dry-run mode (preview without writing) |
-| Both missing | Guide to `/punch:setup` |
+| Status                   | Display & Action                                                  |
+|--------------------------|-------------------------------------------------------------------|
+| `[✓]` ready              | Proceed normally                                                  |
+| `[~]` registered         | Ask user to reload Cursor/restart CLI, then re-detect Layer 1     |
+| `[✗]` auth failed        | Show error, suggest token check                                   |
+| `[-]` missing            | Guide to `/punch:setup`                                           |
+| GitLab OK, Jira missing  | Offer dry-run mode (preview without writing to Jira)              |
+| Both missing             | Guide to `/punch:setup`                                           |
 
 **Remember the detected tool names** for use throughout the rest of the flow. For example, if Jira tools are at `user-Confluence-jira_*`, use that namespace for all subsequent Jira calls.
 
@@ -114,7 +131,7 @@ If Events API is unavailable but `list_merge_requests` works:
 **Only use `git log` if ALL GitLab API calls fail.** Always show a warning:
 
 ```
-  ⚠️  GitLab API 호출 실패 — 로컬 git log로 대체합니다.
+  [!] GitLab API 호출 실패 — 로컬 git log로 대체합니다.
       MR, 코드 리뷰, 이슈 활동은 확인할 수 없습니다.
 ```
 
@@ -125,8 +142,7 @@ If Events API is unavailable but `list_merge_requests` works:
 ## Step 4: Present Activity Summary
 
 ```
-  ■ GitLab Activity — 2026-03-12
-  │
+  GitLab Activity — 2026-03-12:
   ├─ Commits        7   PROJ-101: fix dropdown alignment
   ├─ MR Created     1   !42 [PROJ-101] Dashboard widget
   ├─ MR Merged      1   !38 [PROJ-205] API response fix
@@ -183,14 +199,14 @@ Compare these keywords against Jira issue summaries using simple overlap scoring
 ### 5.5c: Present Suggestions
 
 ```
-  ■ Unlinked Activity — Jira 키 미감지 항목
-  │
-  │  활성 Jira 이슈:
-  │  PROJ-101  드롭다운 UI 개선
-  │  PROJ-205  인증 모듈 리팩토링
-  │  PROJ-310  성능 튜닝
-  │  TEAM-42   README 문서 정리
-  │
+  Unlinked Activity — Jira 키 미감지 항목:
+
+    활성 Jira 이슈:
+    PROJ-101  드롭다운 UI 개선
+    PROJ-205  인증 모듈 리팩토링
+    PROJ-310  성능 튜닝
+    TEAM-42   README 문서 정리
+
   ├─ 1  "fix dropdown alignment" (3 commits)
   │     → PROJ-101 드롭다운 UI 개선?
   │
@@ -269,13 +285,13 @@ Same logic as `/punch:sync-worklog`:
 
 **Transition rules — propose status changes based on GitLab events:**
 
-| GitLab Event | Current Status | Proposed Status | Condition |
-|-------------|---------------|-----------------|-----------|
-| Branch created for issue | `To Do` / `Open` | → `In Progress` | Branch name contains issue key |
-| First commit on issue | `To Do` / `Open` | → `In Progress` | No prior commits for this issue today |
-| MR created | `In Progress` | → `In Review` | MR title/branch contains issue key |
-| MR merged | `In Review` / `In Progress` | → `Done` | MR title/branch contains issue key |
-| Issue closed (GitLab) | any | → `Done` | GitLab issue linked to Jira key |
+| GitLab Event                   | Current Status         | Proposed Status  | Condition                                |
+|--------------------------------|------------------------|------------------|------------------------------------------|
+| Branch created for issue       | `To Do` / `Open`       | → `In Progress`  | Branch name contains issue key           |
+| First commit on issue          | `To Do` / `Open`       | → `In Progress`  | No prior commits for this issue today    |
+| MR created                     | `In Progress`          | → `In Review`    | MR title/branch contains issue key       |
+| MR merged                      | `In Review` / `In Progress` | → `Done`    | MR title/branch contains issue key       |
+| Issue closed (GitLab)          | any                    | → `Done`         | GitLab issue linked to Jira key          |
 
 **Safety rules:**
 - NEVER propose a backward transition (e.g., `Done` → `In Progress`) unless explicitly detected
@@ -293,11 +309,11 @@ Same logic as `/punch:sync-worklog`:
 
 **Comment rules — add informational comments to Jira issues:**
 
-| GitLab Event | Comment Content |
-|-------------|----------------|
-| MR created | `"MR !42 created: [title] (+230/-45, 5 commits)"` |
-| MR merged | `"MR !42 merged by [author] → [target_branch]"` |
-| Code review given | `"Code review: 3 comments on MR !45"` |
+| GitLab Event      | Comment Content                                       |
+|-------------------|-------------------------------------------------------|
+| MR created        | `"MR !42 created: [title] (+230/-45, 5 commits)"`    |
+| MR merged         | `"MR !42 merged by [author] → [target_branch]"`      |
+| Code review given | `"Code review: 3 comments on MR !45"`                |
 
 **Comment style:** Follow the same style detected in Step 7 (language, detail level).
 
@@ -313,12 +329,11 @@ Same logic as `/punch:sync-worklog`:
 **CRITICAL: This is the approval gate. Do NOT call any Jira write API before this step.**
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Punch Sync — 2026-03-12                 │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Punch Sync — 2026-03-12
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Worklogs
-  │
+  Worklogs:
   ├─ 1  PROJ-101   3h 45m   5 commits, MR !42 merged
   │     "Dashboard 위젯 구현 및 MR !42 머지"
   │
@@ -328,22 +343,20 @@ Same logic as `/punch:sync-worklog`:
   └─ 3  PROJ-310   15m      1 issue comment
         "성능 튜닝 이슈 코멘트"
 
-  ■ Issue Updates
-  │
+  Issue Updates:
   ├─ 4  PROJ-101   In Progress → Done        MR !42 merged
   └─ 5  PROJ-310   To Do → In Progress       branch created
 
-  ■ Comments
-  │
+  Comments:
   ├─ 6  PROJ-101   MR !42 merged → main (+230/-45)
   └─ 7  PROJ-205   MR !38 created: API 응답 처리 수정
 
-╭─────────────────────────────────────────────╮
-│  3 worklogs · 2 transitions · 2 comments    │
-│  Total: 5h 30m                              │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  3 worklogs · 2 transitions · 2 comments
+  Total: 5h 30m
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ⚠ PROJ-101: 이미 오늘 2h 워크로그 있음 (중복 가능)
+  [!] PROJ-101: 이미 오늘 2h 워크로그 있음 (중복 가능)
 
   이대로 진행할까요? 번호로 수정/제외 가능합니다.
 ```
@@ -374,10 +387,9 @@ For each approved transition, call `jira_transition_issue`:
 - `transition_id`: from `jira_get_transitions` (matched by target status name)
 
 ```
-  ■ Executing — Issue Updates
-  │
-  ├─ PROJ-101   In Progress → Done        🟢 done
-  └─ PROJ-310   To Do → In Progress       🟢 done
+  Executing — Issue Updates:
+  ├─ PROJ-101   In Progress → Done        [✓] done
+  └─ PROJ-310   To Do → In Progress       [✓] done
 ```
 
 If a transition fails (e.g., required field missing), report the error and continue.
@@ -389,10 +401,9 @@ For each approved comment, call `jira_add_comment`:
 - `body`: the comment text
 
 ```
-  ■ Executing — Comments
-  │
-  ├─ PROJ-101   MR !42 merged             🟢 done
-  └─ PROJ-205   MR !38 created            🟢 done
+  Executing — Comments:
+  ├─ PROJ-101   MR !42 merged             [✓] done
+  └─ PROJ-205   MR !38 created            [✓] done
 ```
 
 ### 10c: Worklogs
@@ -404,11 +415,10 @@ For each approved worklog, call `jira_add_worklog`:
 - `comment`: in learned style
 
 ```
-  ■ Executing — Worklogs
-  │
-  ├─ PROJ-101   3h 45m                    🟢 done
-  ├─ PROJ-205   1h 30m                    🟢 done
-  └─ PROJ-310   15m                       🟢 done
+  Executing — Worklogs:
+  ├─ PROJ-101   3h 45m                    [✓] done
+  ├─ PROJ-205   1h 30m                    [✓] done
+  └─ PROJ-310   15m                       [✓] done
 ```
 
 ---
@@ -446,12 +456,11 @@ Check history on future runs to detect already-synced dates.
 ## Step 12: Summary
 
 ```
-╭─────────────────────────────────────────────╮
-│   ✅ Punch — Complete                        │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Punch — Complete!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Results
-  │
+  Results:
   ├─ Worklogs      3 entries, 5h 30m total
   ├─ Transitions   PROJ-101 → Done
   │                PROJ-310 → In Progress

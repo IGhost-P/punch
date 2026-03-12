@@ -24,13 +24,12 @@ Help the user review their existing Jira worklogs.
 Detect Jira tools (same as `/punch:sync` — tool-agnostic, any source).
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Punch Worklog Report                    │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Punch Worklog Report
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Connections
-  │
-  └─ Jira     🟢 ready     via Confluence MCP
+  Connections:
+  └─ Jira     [✓] ready     via Confluence MCP
 ```
 
 - OK → proceed
@@ -54,8 +53,7 @@ Detect Jira tools (same as `/punch:sync` — tool-agnostic, any source).
 3. Display:
 
 ```
-  ■ Worklogs for PROJ-101
-  │
+  Worklogs for PROJ-101:
   ├─ 2026-03-12   3h      Dashboard 위젯 구현 및 MR !42 머지
   ├─ 2026-03-11   2h      SVG viewport 줌/패닝 개선
   └─ Total         5h
@@ -72,23 +70,20 @@ Detect Jira tools (same as `/punch:sync` — tool-agnostic, any source).
    ```
    worklogAuthor = currentUser() AND worklogDate >= "YYYY-MM-DD"
    ```
-
 3. For each found issue, fetch worklogs filtered by date and user.
 4. Display:
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Worklog Summary — 2026-03-12            │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Worklog Summary — 2026-03-12
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Entries
-  │
+  Entries:
   ├─ PROJ-101   3h      Dashboard 위젯 구현
   ├─ PROJ-205   1h 30m  API 응답 처리 수정
   └─ Total       4h 30m
 
-  ■ Daily Stats
-  │
+  Daily Stats:
   ├─ Logged      4h 30m
   ├─ Remaining   3h 30m  (8h 기준)
   └─ Coverage    56%
@@ -101,18 +96,16 @@ Detect Jira tools (same as `/punch:sync` — tool-agnostic, any source).
 For weekly reports, show a day-by-day breakdown:
 
 ```
-╭─────────────────────────────────────────────╮
-│   ⚡ Weekly Summary — 03-10 ~ 03-12          │
-╰─────────────────────────────────────────────╯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Weekly Summary — 03-10 ~ 03-12
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ■ Daily Breakdown
-  │
+  Daily Breakdown:
   ├─ Mon 03-10   7h 30m / 8h   ▰▰▰▰▰▰▰▰▰▱  94%
   ├─ Tue 03-11   8h / 8h       ▰▰▰▰▰▰▰▰▰▰  100%
   └─ Wed 03-12   4h 30m / 8h   ▰▰▰▰▰▱▱▱▱▱  56%
 
-  ■ Total
-  │
+  Total:
   ├─ Logged   20h / 24h
   └─ Gap      4h 부족
 
@@ -124,10 +117,9 @@ For weekly reports, show a day-by-day breakdown:
 ## Duplicate Detection
 
 Flag entries that look like duplicates:
-
 - Same issue + same date + similar time = likely duplicate
 - Multiple "Punch:" entries on same issue+date = likely re-sync
-- Warn: `⚠️ PROJ-101: 오늘 3h 워크로그가 2건 있습니다 (중복 가능)`
+- Warn: `[!] PROJ-101: 오늘 3h 워크로그가 2건 있습니다 (중복 가능)`
 
 ---
 
@@ -136,10 +128,10 @@ Flag entries that look like duplicates:
 When Jira MCP is unavailable but `~/.punch/history.json` exists:
 
 ```
-  ■ Offline Report (cached)
-  │
-  │  ⚠ Jira 연결 불가 — 로컬 이력 표시
-  │
+  Offline Report (cached):
+
+    [!] Jira 연결 불가 — 로컬 이력 표시
+
   ├─ Last sync    2026-03-12 18:30
   ├─ PROJ-101     3h 45m
   └─ PROJ-205     1h 30m
