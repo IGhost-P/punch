@@ -57,7 +57,6 @@ If only GitLab is available, offer a "dry run" — show what would be logged wit
 ## Step 1: Parse Date Range
 
 From the user's arguments:
-
 - `today` (default if empty) — today only
 - `this-week` — Monday through today
 - `YYYY-MM-DD` — specific date
@@ -67,28 +66,37 @@ From the user's arguments:
 
 ## Step 2: Identify GitLab Projects
 
-Auto-detect: run `git remote -v` to find the current GitLab project.
+**IMPORTANT: Always use GitLab API first. Never fall back to local git without trying the API.**
 
-If not in a git repo, use GitLab MCP to list projects. If many, ask the user which to scan.
+1. **Hint from local git** (optional): run `git remote -v` to extract a GitLab project path. This is only a hint.
+2. **Resolve via GitLab API**: Use the path to call GitLab MCP tools (e.g., `get_project`) to get the **project ID**.
+3. **If no git remote**: Use GitLab MCP to list the user's projects. If many, ask which to scan.
+4. **If GitLab MCP is unavailable**: Stop and guide to `/punch:setup`. Do NOT silently fall back to `git log`.
 
 ---
 
 ## Step 3: Fetch Activity
 
-Fetch **all** activity types for the user within the date range:
+**CRITICAL: Use GitLab API (MCP tools) for ALL activity fetching. Never use `git log` as the primary source.**
 
-| Category           | Source                                                | What it captures      |
-|--------------------|-------------------------------------------------------|-----------------------|
-| **Commits**        | `list_commits` or Events API                          | Code pushed           |
-| **MR Created**     | Events API (`created` + `merge_request`)              | MR preparation        |
-| **MR Merged**      | Events API (`merged`)                                 | Final review + merge  |
-| **Code Review**    | MR notes/discussions                                  | Reviewing others' MRs |
-| **Issue Activity** | Events API (`created`/`commented`/`closed` + `issue`) | Issue triage          |
+### 3a: Primary — GitLab API (MUST try first)
 
-Fallback if Events API unavailable:
+| Category           | API Call                                            | What it captures      |
+|--------------------|-----------------------------------------------------|-----------------------|
+| **Commits**        | `list_commits` (project_id, since, until, author)   | Code pushed           |
+| **MR Created**     | `list_merge_requests` (state=all, created_after)    | MR preparation        |
+| **MR Merged**      | `list_merge_requests` (state=merged, updated_after) | Final review + merge  |
+| **Code Review**    | MR notes/discussions API                            | Reviewing others' MRs |
+| **Issue Activity** | Events API or issue notes                           | Issue triage          |
 
-- `list_merge_requests` filtered by author/reviewer
-- `git log --author=<email> --since=<date> --until=<date>`
+### 3b: Last resort — Local git log (with warning)
+
+**Only use `git log` if ALL GitLab API calls fail.** Always show a warning:
+
+```
+  ⚠️  GitLab API 호출 실패 — 로컬 git log로 대체합니다.
+      MR, 코드 리뷰, 이슈 활동은 확인할 수 없습니다.
+```
 
 ---
 
@@ -109,7 +117,6 @@ Show what was found and let the user choose what to include:
 ```
 
 Use **AskUserQuestion** or wait for freeform reply:
-
 - "전부" / "yes" → include all
 - "코드 리뷰 빼줘" → exclude code review
 - Specific selection → apply
@@ -119,7 +126,6 @@ Use **AskUserQuestion** or wait for freeform reply:
 ## Step 5: Parse Jira Issue Keys
 
 Extract keys from all selected activities:
-
 - Branch names: `feature/PROJ-42-user-settings` → `PROJ-42`
 - Commit messages: `PROJ-101: fix layout` → `PROJ-101`
 - MR titles: `[PROJ-205] Add feature` → `PROJ-205`
@@ -134,7 +140,6 @@ Group unrecognized activity under "Unlinked".
 ## Step 6: Check Existing Worklogs (Dedup)
 
 For each issue key, call `jira_get_worklog`. Flag entries where:
-
 - Same user + same date already exists
 - Comment contains `"Punch:"` (previously synced by this plugin)
 
@@ -156,13 +161,13 @@ For each issue key, call `jira_get_worklog`. Flag entries where:
 
 **Style dimensions to detect:**
 
-| Dimension          | Examples                                                                      | Possible values                 |
-|--------------------|-------------------------------------------------------------------------------|---------------------------------|
-| **Language**       | "커밋 3건", "3 commits"                                                          | Korean / English / Mixed        |
-| **Format**         | bullet list, free text, prefix tag                                            | bullets / freetext / tag-prefix |
-| **Detail level**   | "작업함" vs "PROJ-101 드롭다운 정렬 수정, 반응형 처리 포함"                                     | minimal / moderate / detailed   |
-| **Prefix**         | `[DEV]`, `Punch:`, none                                                       | detected prefix or none         |
-| **Time reference** | includes commit count, MR numbers, etc.                                       | with-refs / without-refs        |
+| Dimension | Examples | Possible values |
+|-----------|---------|-----------------|
+| **Language** | "커밋 3건", "3 commits" | Korean / English / Mixed |
+| **Format** | bullet list, free text, prefix tag | bullets / freetext / tag-prefix |
+| **Detail level** | "작업함" vs "PROJ-101 드롭다운 정렬 수정, 반응형 처리 포함" | minimal / moderate / detailed |
+| **Prefix** | `[DEV]`, `Punch:`, none | detected prefix or none |
+| **Time reference** | includes commit count, MR numbers, etc. | with-refs / without-refs |
 
 4. Build a `style_profile` object:
 
@@ -199,19 +204,18 @@ Detected style:
 
 **Per-activity defaults:**
 
-| Activity               | Default Time                     |
-|------------------------|----------------------------------|
+| Activity | Default Time |
+|----------|-------------|
 | Commit (with interval) | Gap to next commit, capped at 2h |
-| Commit (isolated)      | 30m                              |
-| MR Created             | 30m                              |
-| MR Merged              | 15m                              |
-| Code Review comment    | 15m per comment                  |
-| Issue comment          | 15m                              |
-| Issue created          | 20m                              |
-| Issue closed           | 10m                              |
+| Commit (isolated) | 30m |
+| MR Created | 30m |
+| MR Merged | 15m |
+| Code Review comment | 15m per comment |
+| Issue comment | 15m |
+| Issue created | 20m |
+| Issue closed | 10m |
 
 **Strategies:**
-
 - **A (default)**: Activity-based — commit intervals + per-activity estimates
 - **B**: User says total hours → distribute by activity weight
 - **C**: User enters time per issue manually
@@ -253,7 +257,6 @@ Show Strategy A. If user says "좀 다른데" or estimates look off, offer B or 
 ```
 
 Wait for user response:
-
 - **Approve**: "확인", "ㅇㅇ", "yes", "좋아" → proceed to Step 10
 - **Modify**: "1번 2시간으로", "#2 → 1h" → update and re-display
 - **Skip**: "3번 빼줘", "unlinked 제외" → remove and re-display
@@ -267,7 +270,6 @@ Wait for user response:
 ## Step 10: Record Worklogs
 
 For each approved entry, call `jira_add_worklog`:
-
 - `issue_key`: the Jira issue key
 - `time_spent`: confirmed time in Jira format (`3h`, `1h 30m`)
 - `started`: target date ISO format (`2026-03-12T09:00:00.000+0900`)
