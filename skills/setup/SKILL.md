@@ -331,22 +331,12 @@ Write (or merge into existing):
 
 MCP registration may fail (Cursor uvx spawning issues, Claude Code env bugs). That's OK — REST API fallback will cover GitLab.
 
-**Claude Code:**
+**Claude Code (use `add-json` — the `-e` flag has parsing bugs):**
 
 ```bash
-claude mcp add \
-  --scope user \
-  --transport stdio \
-  --env GITLAB_URL=<url> \
-  --env GITLAB_TOKEN=<token> \
-  punch-gitlab -- uvx mcp-gitlab
+claude mcp add-json -s user punch-gitlab '{"type":"stdio","command":"uvx","args":["mcp-gitlab"],"env":{"GITLAB_URL":"<url>","GITLAB_TOKEN":"<token>"}}'
 
-claude mcp add \
-  --scope user \
-  --transport stdio \
-  --env JIRA_URL=<url> \
-  --env JIRA_PERSONAL_TOKEN=<token> \
-  punch-jira -- uvx mcp-atlassian
+claude mcp add-json -s user punch-jira '{"type":"stdio","command":"uvx","args":["mcp-atlassian"],"env":{"JIRA_URL":"<url>","JIRA_PERSONAL_TOKEN":"<token>"}}'
 ```
 
 **Cursor:**
