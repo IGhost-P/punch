@@ -314,7 +314,7 @@ punch/
 
 Punch does NOT bundle `mcpServers` in `plugin.json`. The [official `${ENV_VAR}` pattern](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers) in plugin `env` blocks is **unreliable** — the `env` block values are not consistently passed to spawned MCP server processes ([anthropics/claude-code#11927](https://github.com/anthropics/claude-code/issues/11927), open since Nov 2025 with 26+ upvotes as of Mar 2026).
 
-Instead, `/punch:setup` writes **actual credential values** directly to the user's MCP config file:
+Instead, `/punch:setup` registers MCP servers with **actual credential values** using the official `claude mcp add` CLI:
 
 ```
   /punch:setup
@@ -324,26 +324,27 @@ Instead, `/punch:setup` writes **actual credential values** directly to the user
   │ Jira URL + Token    │
   └─────────┬───────────┘
             │
-      ┌─────┴─────┐
-      │           │
-      v           v
-  Cursor        Claude Code
-  ~/.cursor/    ~/.claude/
-  mcp.json      mcp.json
-  (actual       (actual
-   values)       values)
+            v
+  claude mcp add --scope user
+  --env GITLAB_URL=https://...
+  --env GITLAB_TOKEN=****
+  punch-gitlab -- uvx mcp-gitlab
+            │
+            v
+  ~/.claude.json (user scope)
+  available across all projects
 ```
 
-| Runtime | Setup writes to | Format |
-|---------|----------------|--------|
-| **Cursor** | `~/.cursor/mcp.json` | `punch-gitlab`, `punch-jira` with actual values |
-| **Claude Code** | `~/.claude/mcp.json` | Same — actual values, user scope |
+| Runtime | Registration method | Storage |
+|---------|-------------------|---------|
+| **Claude Code** | `claude mcp add --scope user` | `~/.claude.json` |
+| **Cursor** | Direct file write | `~/.cursor/mcp.json` |
 
 **Why not `plugin.json` mcpServers + `${ENV_VAR}`?**
 1. The `env` block's `${ENV_VAR}` resolution is [unreliable for plugins](https://github.com/anthropics/claude-code/issues/11927)
 2. Even when resolved, env values may not reach spawned processes ([#22571](https://github.com/anthropics/claude-code/issues/22571))
 3. Self-hosted services (GitLab, Jira) have different URLs per user — can't hardcode in plugin
-4. Writing actual values to the MCP config file works reliably in all environments
+4. `claude mcp add` is the official, supported registration path for Claude Code
 
 **Why `uvx`, not `npx`?** `npx` fails with `npm EACCES` permission errors. `uvx` (Python/uv) has no such issues.
 

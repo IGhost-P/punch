@@ -210,19 +210,22 @@ For each missing tool, collect credentials then write the config directly.
 
 #### 2a: Detect Environment
 
-Determine where to write the MCP config. **Both runtimes get actual values written directly.**
+Determine the runtime and registration method.
 
-| Runtime         | Config File              | How to detect                                      |
-|-----------------|--------------------------|----------------------------------------------------|
-| **Cursor**      | `~/.cursor/mcp.json`     | You have access to `StrReplace`/`Write` file tools |
-| **Claude Code** | `~/.claude/mcp.json`     | You are running inside `claude` CLI                |
+| Runtime         | Registration method                              | Storage                   |
+|-----------------|--------------------------------------------------|---------------------------|
+| **Claude Code** | `claude mcp add --scope user` (Shell tool)       | `~/.claude.json` (user)   |
+| **Cursor**      | Direct file write (`Read` + `Write` tools)       | `~/.cursor/mcp.json`      |
+
+**How to detect which runtime you're in:**
+- If you can run `claude --version` via Shell → Claude Code
+- If you have `StrReplace`/`Write` tools but no `claude` CLI → Cursor
 
 **CRITICAL RULES:**
-- **NEVER** use `${ENV_VAR}` placeholders. Always write **actual credential values**.
-  The `${ENV_VAR}` pattern in Claude Code is unreliable for plugin MCP servers ([#11927](https://github.com/anthropics/claude-code/issues/11927), open as of Mar 2026).
-- In **Cursor**: Write directly to `~/.cursor/mcp.json` using `Read` + `Write` tools.
-- In **Claude Code**: Write directly to `~/.claude/mcp.json` (user scope — available across all projects).
-- **NEVER** just show instructions and ask the user to configure manually. Always write the file directly.
+- **Claude Code**: Use `claude mcp add` CLI command. This is the official, supported registration path. It stores actual values in `~/.claude.json` (user scope) and handles env var injection correctly.
+- **Cursor**: Write directly to `~/.cursor/mcp.json` with actual credential values.
+- **NEVER** use `${ENV_VAR}` placeholders anywhere. The `${ENV_VAR}` pattern is unreliable for plugin MCP servers ([#11927](https://github.com/anthropics/claude-code/issues/11927)).
+- **NEVER** just show instructions and ask the user to configure manually. Always register directly.
 
 ---
 
@@ -266,20 +269,55 @@ Ask the user:
 
 #### 2d: AUTO-REGISTER
 
-**This is the critical step. The agent MUST directly modify the config, not just show instructions.**
+**This is the critical step. The agent MUST directly register MCP servers, not just show instructions.**
 
-Both Claude Code and Cursor use the **same approach**: write actual credential values to an MCP config JSON file. The only difference is the file path.
+---
 
-| Runtime | Target file |
-|---------|-------------|
-| **Cursor** | `~/.cursor/mcp.json` |
-| **Claude Code** | `~/.claude/mcp.json` |
+**Path A — Claude Code (use `claude mcp add` CLI)**
 
-**Procedure:**
+Run these commands via the **Shell** tool. The `claude mcp add` command stores actual values in `~/.claude.json` user scope.
 
-1. Read the target config file (ignore error if not exists)
-2. Parse the JSON (or start with `{ "mcpServers": {} }` if missing)
-3. Add the missing server(s) to `mcpServers` with **actual collected values**:
+GitLab:
+
+```bash
+claude mcp add \
+  --scope user \
+  --transport stdio \
+  --env GITLAB_URL=<collected-url> \
+  --env GITLAB_TOKEN=<collected-token> \
+  punch-gitlab \
+  -- uvx mcp-gitlab
+```
+
+Jira:
+
+```bash
+claude mcp add \
+  --scope user \
+  --transport stdio \
+  --env JIRA_URL=<collected-url> \
+  --env JIRA_PERSONAL_TOKEN=<collected-token> \
+  punch-jira \
+  -- uvx mcp-atlassian
+```
+
+After registration, verify with:
+
+```bash
+claude mcp list
+```
+
+Tell user to restart Claude Code (`/exit` → re-launch `claude`) for MCP servers to activate.
+
+**Why `--scope user`?** User scope stores in `~/.claude.json` and is available across ALL projects. Local scope (default) only works in the current project.
+
+---
+
+**Path B — Cursor (direct file write)**
+
+1. Read existing `~/.cursor/mcp.json` (ignore error if not exists)
+2. Parse JSON (or start with `{ "mcpServers": {} }`)
+3. Add missing servers with **actual values**:
 
 GitLab:
 
@@ -311,29 +349,29 @@ Jira (check if it already exists under keys like `Confluence`, `jira`, `atlassia
 }
 ```
 
-4. Write the updated JSON back to the target file
-5. Preserve ALL existing servers — only add new ones
-6. Tell user to restart:
-   - Cursor: `Cmd+Shift+P → "Reload Window"`
-   - Claude Code: `/exit` then re-launch `claude`
+4. Write updated JSON back
+5. Tell user to reload: `Cmd+Shift+P → "Reload Window"`
 
-**IMPORTANT RULES:**
-- **NEVER** use `${ENV_VAR}` placeholders — always write **actual values**
-- NEVER overwrite existing servers
+---
+
+**IMPORTANT RULES (both paths):**
+- **NEVER** use `${ENV_VAR}` placeholders — always use **actual values**
+- NEVER overwrite existing servers (check before adding)
 - NEVER remove other MCP servers from the config
 - NEVER use `npx` — always use `uvx` for local processes
-- ALWAYS use `Read` tool to get current file content first
-- If file doesn't exist, create with `{ "mcpServers": { ... } }`
-- Server keys are prefixed `punch-` to avoid collisions with user's existing servers
+- Server keys are prefixed `punch-` to avoid collisions
+- For Cursor: ALWAYS use `Read` tool to get current file content first
 
 #### 2e: Show Result
+
+**Claude Code:**
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   MCP 서버 등록 완료
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  <config-file> 에 추가됨:
+  claude mcp add 로 등록됨 (user scope):
   ├─ punch-gitlab       uvx mcp-gitlab
   │    GITLAB_URL       https://gitlab.example.com
   │    GITLAB_TOKEN     ****
@@ -341,9 +379,27 @@ Jira (check if it already exists under keys like `Confluence`, `jira`, `atlassia
   │    JIRA_URL         https://jira.example.com
   └─   JIRA_PERSONAL..  ****
 
-  다음 단계:
-  Cursor  → Cmd+Shift+P → "Reload Window"
-  Claude  → /exit → claude 다시 실행
+  다음 단계: Claude Code를 재시작하세요.
+  /exit → claude 다시 실행
+```
+
+**Cursor:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MCP 서버 등록 완료
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ~/.cursor/mcp.json 에 추가됨:
+  ├─ punch-gitlab       uvx mcp-gitlab
+  │    GITLAB_URL       https://gitlab.example.com
+  │    GITLAB_TOKEN     ****
+  ├─ punch-jira         uvx mcp-atlassian
+  │    JIRA_URL         https://jira.example.com
+  └─   JIRA_PERSONAL..  ****
+
+  다음 단계: Cursor를 재시작하세요.
+  Cmd+Shift+P → "Reload Window"
 ```
 
 ---
@@ -461,17 +517,17 @@ Make test calls to each tool.
   Jira API     [✓] OK        company.atlassian.net
 ```
 
-**Check 3: MCP Config Files**
+**Check 3: MCP Registration**
 
-Read and report the status of MCP config files:
+In Claude Code, run `claude mcp list` via Shell. In Cursor, read `~/.cursor/mcp.json`.
 
 ```
-  MCP Config Files:
-  ~/.cursor/mcp.json      [✓] exists    punch-gitlab, punch-jira found
-  ~/.claude/mcp.json      [-] not found
+  MCP Registration:
+  punch-gitlab            [✓] registered   user scope
+  punch-jira              [✓] registered   user scope
 ```
 
-For each found config, verify the server entries have non-empty URL and token values (not `${ENV_VAR}` placeholders).
+For Cursor, verify the server entries in `~/.cursor/mcp.json` have non-empty URL and token values (not `${ENV_VAR}` placeholders).
 
 **Check 4: uvx health**
 
@@ -494,7 +550,8 @@ python3 --version 2>&1
   Status:   [✓] All checks passed
   
   만약 문제가 있다면:
-  MCP 미설정 → /punch:setup 으로 자동 등록
+  MCP 미등록 → /punch:setup 으로 자동 등록
+  Claude Code → claude mcp add 로 직접 등록도 가능
   uvx 미설치 → pip install uv 또는 https://docs.astral.sh/uv/
   Python 미설치 → brew install python3
 ```
