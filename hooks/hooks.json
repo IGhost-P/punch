@@ -1,0 +1,28 @@
+{
+  "description": "Punch — auto-sync GitLab activity to Jira",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/check-setup.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-git-sync.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

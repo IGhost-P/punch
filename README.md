@@ -243,6 +243,17 @@ Not every team puts `PROJ-101` in their commits. Punch handles this:
 
 Works with any naming convention — or no convention at all. Confirmed mappings are saved and learned for next time.
 
+### Hooks — Automatic Nudges
+
+Punch registers [Claude Code hooks](https://code.claude.com/docs/en/hooks) that run deterministically — no prompt needed:
+
+| Hook | Event | What it does |
+|------|-------|-------------|
+| `check-setup.sh` | `SessionStart` | Checks `~/.punch/credentials.json` exists. Nudges `/punch:setup` if missing. |
+| `post-git-sync.sh` | `PostToolUse` (Bash) | Detects `git commit` / `git push` and nudges `/punch:sync`. |
+
+Hooks fire automatically when the plugin is enabled. Unlike CLAUDE.md instructions, hooks are **deterministic** — they always run.
+
 ### Duplicate Prevention
 
 ```
@@ -295,8 +306,12 @@ Run `/punch:setup` — it first checks if you already have GitLab/Jira tools ava
 ```
 punch/
 ├── .claude-plugin/
-│   ├── plugin.json          Plugin manifest (no bundled mcpServers)
+│   ├── plugin.json          Plugin manifest
 │   └── marketplace.json     Marketplace distribution
+├── hooks/
+│   ├── hooks.json           Lifecycle hooks (auto-loaded by Claude Code)
+│   ├── check-setup.sh       SessionStart — credentials check
+│   └── post-git-sync.sh     PostToolUse — git commit/push detection
 ├── commands/
 │   ├── sync.md              <- main command
 │   ├── sync-worklog.md      Worklog-only mode
