@@ -88,7 +88,7 @@ claude plugin install punch@punch
 
 ## Zero-Config Design
 
-Punch doesn't bundle MCP servers. It detects and uses whatever GitLab/Jira tools are already available:
+Punch detects and uses whatever GitLab/Jira tools are available. **MCP first, REST API fallback for GitLab:**
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -112,12 +112,14 @@ If nothing is found, setup **auto-registers** the MCP servers:
   Jira     [-] 이미 존재 (mcp-atlassian)
 ```
 
-| Source                | GitLab | Jira | Runtime |
-|-----------------------|--------|------|---------|
-| Punch auto-install    | ✓      | ✓    | uvx     |
-| Cursor MCP settings   | ✓      | ✓    | uvx     |
-| Claude Code MCP       | ✓      | ✓    | uvx     |
-| Existing IDE plugins  | ✓      | ✓    | varies  |
+| Source                | GitLab | Jira | Notes |
+|-----------------------|--------|------|-------|
+| MCP tools (any source)| ✓      | ✓    | Richest integration |
+| **REST API (curl)**   | ✓      | —    | Always works with token |
+| Cursor MCP settings   | ✓      | ✓    | uvx-based |
+| Claude Code MCP       | ✓      | ✓    | uvx-based |
+
+**GitLab REST API is a first-class method.** MCP servers can error due to process spawning issues. REST API (`curl` + token) is 100% reliable.
 
 ---
 

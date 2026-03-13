@@ -21,26 +21,47 @@ Guided onboarding that connects your GitLab and Jira accounts.
 
 ## Design Principle
 
-**Detect first, install only if needed. Write actual values — never rely on `${ENV_VAR}` in plugins.**
+**Detect first, install only if needed. MCP first, REST API fallback. Never rely on local `git log`.**
 
-Punch does NOT bundle `mcpServers` in `plugin.json`. The official `${ENV_VAR}` pattern in plugin MCP configs is **unreliable** — the `env` block is not consistently passed to spawned server processes ([anthropics/claude-code#11927](https://github.com/anthropics/claude-code/issues/11927), open since Nov 2025, 26+ upvotes as of Mar 2026).
+### Data Source Priority
 
-**Instead, `/punch:setup` writes actual credential values directly to the user's MCP config file:**
+| Priority | GitLab source | Jira source | Notes |
+|----------|--------------|-------------|-------|
+| 1st | MCP tools (`mcp__*gitlab*`, `user-*gitlab*`) | MCP tools (`jira_*`, `user-*jira*`) | Richest integration |
+| 2nd | **REST API via `curl`** (URL + token) | — | Always works with token |
+| 3rd | ~~Local `git log`~~ | — | **NEVER use.** Does not reflect remote state |
 
-| Runtime | Config file | What setup writes |
-|---------|------------|-------------------|
-| **Cursor** | `~/.cursor/mcp.json` | Actual URL + token values |
-| **Claude Code** | `~/.claude/mcp.json` (user scope) | Actual URL + token values |
+**GitLab REST API** is a first-class fallback, not a last resort. MCP servers frequently error due to process spawning issues. The REST API (`curl -H "PRIVATE-TOKEN: ..." https://gitlab.example.com/api/v4/...`) is 100% reliable when the token is valid.
 
-**Why not `plugin.json` mcpServers?**
-- `${ENV_VAR}` in `env` blocks is NOT reliably resolved for plugin-bundled MCP servers
-- Even when resolved, the values may not be passed to spawned processes
-- Self-hosted services (GitLab, Jira) have variable URLs per user — can't hardcode
-- Community workaround: wrapper scripts — but adds complexity for no benefit
+### Credential Storage
 
-**Detection priority:** Reuse existing tools from any source (IDE plugins, pre-configured MCP) before installing new ones.
+Punch stores credentials in `~/.punch/credentials.json` (gitignored). This file is the single source of truth for both MCP registration AND REST API fallback.
 
-**Never use `npx`** — it has widespread EACCES permission issues. Use `uvx` (Python) for local processes.
+```json
+{
+  "gitlab": {
+    "url": "https://gitlab.example.com",
+    "token": "glpat-..."
+  },
+  "jira": {
+    "url": "https://jira.example.com",
+    "token": "..."
+  }
+}
+```
+
+### MCP Registration
+
+After collecting credentials, setup also registers MCP servers (best-effort):
+
+| Runtime | Method | Storage |
+|---------|--------|---------|
+| **Claude Code** | `claude mcp add --scope user` | `~/.claude.json` |
+| **Cursor** | Direct file write | `~/.cursor/mcp.json` |
+
+If MCP registration fails or the server errors at runtime, sync falls back to REST API automatically.
+
+**Never use `npx`** — it has widespread EACCES permission issues. Use `uvx` (Python) for MCP servers.
 
 ---
 
@@ -66,13 +87,13 @@ Punch does NOT bundle `mcpServers` in `plugin.json`. The official `${ENV_VAR}` p
 
 ### Step 1: Detect Existing Tools (Multi-Layer)
 
-**This is the most important step. Use ALL THREE layers to detect tools BEFORE asking for tokens.**
+**This is the most important step. Use ALL layers to detect tools BEFORE asking for tokens.**
 
 Detection runs top-to-bottom. The first layer that succeeds determines the status.
 
-#### Layer 1 — Direct Tool Call (highest confidence)
+#### Layer 1 — MCP Tool Call (highest confidence)
 
-Actually call a read-only tool. If it returns data, the tool is **ready**.
+Actually call a read-only MCP tool. If it returns data, the tool is **ready via MCP**.
 
 | Service | Try calling (in order)                                                      |
 |---------|-----------------------------------------------------------------------------|
@@ -88,52 +109,61 @@ Actually call a read-only tool. If it returns data, the tool is **ready**.
 | `mcp__jira__*`, `mcp__punch-jira__*`             | Claude Code MCP |
 | `user-Confluence-jira_*`, `user-*jira*`          | Cursor/IDE MCP  |
 
-If a tool call succeeds with real data → status = `[✓] ready`.
+If a tool call succeeds with real data → status = `[✓] ready (MCP)`.
 
-#### Layer 2 — Config File Scan (medium confidence)
+#### Layer 2 — REST API Test (GitLab only, high confidence)
 
-If Layer 1 found nothing, **read the MCP config files** to check if tools are registered but not yet connected (e.g., Cursor needs restart).
+If Layer 1 failed for GitLab, check if `~/.punch/credentials.json` or `~/.cursor/mcp.json` has GitLab URL + token. If found, test the REST API directly:
+
+```bash
+curl -s --header "PRIVATE-TOKEN: <token>" "<url>/api/v4/user"
+```
+
+If the curl returns a valid user JSON → status = `[✓] ready (REST API)`.
+
+**This is a first-class connection method, not a fallback.** GitLab MCP servers frequently error due to `uvx` process spawning issues in Cursor/Claude Code. The REST API is 100% reliable when the token is valid.
+
+#### Layer 3 — Config File Scan (medium confidence)
+
+If Layers 1-2 found nothing, **read the MCP config files** to check if tools are registered but not yet connected.
 
 **MUST read ALL of these files** (use `Read` tool, ignore errors for missing files):
 
 | File                   | What to look for                                                              |
 |------------------------|-------------------------------------------------------------------------------|
+| `~/.punch/credentials.json` | Punch's own credential store                                            |
 | `~/.cursor/mcp.json`  | Keys containing `gitlab`, `GitLab` → GitLab registered in Cursor             |
 |                        | Keys containing `jira`, `Jira`, `atlassian`, `Confluence` → Jira in Cursor   |
-| `~/.claude/mcp.json`  | Same patterns → registered in Claude Code global                              |
-| `~/.claude.json`      | Under `projects.*.mcpServers` → registered in Claude Code project scope       |
+| `~/.claude.json`       | Under `mcpServers` → registered in Claude Code                               |
 
-**How to scan:** Read the file → parse the JSON → check if any key in `mcpServers` matches the service name (case-insensitive substring match).
+If found in config but Layers 1-2 failed → status = `[~] registered, not connected`.
 
-If found in config but Layer 1 call failed → status = `[~] registered, not connected`.
+#### Layer 4 — Not Found
 
-**IMPORTANT:** Also note WHICH file and WHICH key name it was found under, for the display.
-
-#### Layer 3 — Not Found
-
-If neither Layer 1 nor Layer 2 found anything → status = `[-] missing`.
+If no layer found anything → status = `[-] missing`.
 
 #### Display Results
 
-Three possible statuses per service:
+Four possible statuses per service:
 
 | Status | Meaning                              | Display                                    |
 |--------|--------------------------------------|--------------------------------------------|
-| ready  | Tool call succeeded                  | `[✓] ready     via {source}`               |
-| registered | Found in config, not callable    | `[~] registered  in {config_file} ({key})` |
-| missing | Not found anywhere                  | `[-] missing`                              |
+| ready (MCP) | MCP tool call succeeded         | `[✓] ready     via {MCP source}`           |
+| ready (API) | REST API call succeeded         | `[✓] ready     via REST API (@username)`   |
+| registered  | Found in config, not callable   | `[~] registered  in {config_file} ({key})` |
+| missing     | Not found anywhere              | `[-] missing`                              |
 
-**Example — Both ready:**
+**Example — Both ready (mixed sources):**
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Punch Setup — Tool Detection
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  GitLab   [✓] ready       via Cursor GitLab plugin
+  GitLab   [✓] ready       via REST API (@swYang)
   Jira     [✓] ready       via Confluence MCP
 
-  Both tools available — no setup needed!
+  Both tools available!
 ```
 
 → Skip to **Step 4 (Verification)**.
@@ -148,11 +178,11 @@ Three possible statuses per service:
   GitLab   [~] registered   in ~/.cursor/mcp.json (GitLab)
   Jira     [~] registered   in ~/.cursor/mcp.json (Confluence)
 
-  도구가 등록되어 있지만 아직 연결되지 않았습니다.
-  Cursor 재시작이 필요할 수 있습니다: Cmd+Shift+P → "Reload Window"
+  MCP 서버가 에러 상태입니다.
+  GitLab → REST API로 전환을 시도합니다...
 ```
 
-→ Ask user to reload, then re-run Layer 1. If still not working → **Step 3 (Troubleshooting)**.
+→ If GitLab MCP failed, immediately try Layer 2 (REST API) before asking user to do anything.
 
 **Example — One or both missing:**
 
@@ -186,17 +216,18 @@ Three possible statuses per service:
 
 **Decision logic:**
 
-| GitLab status | Jira status  | Action                                         |
-|---------------|--------------|------------------------------------------------|
-| ready         | ready        | → Step 4 (Verification)                        |
-| ready         | registered   | → Ask reload, then re-detect Layer 1           |
-| registered    | ready        | → Ask reload, then re-detect Layer 1           |
-| registered    | registered   | → Ask reload, then re-detect Layer 1           |
-| ready         | missing      | → Step 2 (install Jira only)                   |
-| missing       | ready        | → Step 2 (install GitLab only)                 |
-| missing       | registered   | → Step 2 (install GitLab), ask reload for Jira |
-| registered    | missing      | → Ask reload for GitLab, Step 2 for Jira       |
-| missing       | missing      | → Step 2 (install both)                        |
+| GitLab status       | Jira status  | Action                                         |
+|---------------------|--------------|------------------------------------------------|
+| ready (MCP or API)  | ready        | → Step 4 (Verification)                        |
+| ready (MCP or API)  | registered   | → Ask reload for Jira, then re-detect          |
+| ready (MCP or API)  | missing      | → Step 2 (install Jira only)                   |
+| registered          | ready        | → Try REST API for GitLab (Layer 2)            |
+| registered          | registered   | → Try REST API for GitLab, ask reload for Jira |
+| registered          | missing      | → Try REST API for GitLab, Step 2 for Jira     |
+| missing             | ready        | → Step 2 (install GitLab only)                 |
+| missing             | missing      | → Step 2 (install both)                        |
+
+**Key rule:** When GitLab MCP is `registered` but errored, ALWAYS try REST API before asking user to reload. REST API works when MCP doesn't.
 
 ---
 
@@ -269,98 +300,77 @@ Ask the user:
 
 #### 2d: AUTO-REGISTER
 
-**This is the critical step. The agent MUST directly register MCP servers, not just show instructions.**
+**Three things happen in order: (1) Save credentials, (2) Register MCP (best-effort), (3) Verify via REST API.**
 
 ---
 
-**Path A — Claude Code (use `claude mcp add` CLI)**
+**Step 1 — Save credentials to `~/.punch/credentials.json`**
 
-Run these commands via the **Shell** tool. The `claude mcp add` command stores actual values in `~/.claude.json` user scope.
+This is the single source of truth. Both MCP and REST API fallback read from here.
 
-GitLab:
+```bash
+mkdir -p ~/.punch
+```
+
+Write (or merge into existing):
+
+```json
+{
+  "gitlab": {
+    "url": "<collected-url>",
+    "token": "<collected-token>"
+  },
+  "jira": {
+    "url": "<collected-url>",
+    "token": "<collected-token>"
+  }
+}
+```
+
+**Step 2 — Register MCP servers (best-effort)**
+
+MCP registration may fail (Cursor uvx spawning issues, Claude Code env bugs). That's OK — REST API fallback will cover GitLab.
+
+**Claude Code:**
 
 ```bash
 claude mcp add \
   --scope user \
   --transport stdio \
-  --env GITLAB_URL=<collected-url> \
-  --env GITLAB_TOKEN=<collected-token> \
-  punch-gitlab \
-  -- uvx mcp-gitlab
-```
+  --env GITLAB_URL=<url> \
+  --env GITLAB_TOKEN=<token> \
+  punch-gitlab -- uvx mcp-gitlab
 
-Jira:
-
-```bash
 claude mcp add \
   --scope user \
   --transport stdio \
-  --env JIRA_URL=<collected-url> \
-  --env JIRA_PERSONAL_TOKEN=<collected-token> \
-  punch-jira \
-  -- uvx mcp-atlassian
+  --env JIRA_URL=<url> \
+  --env JIRA_PERSONAL_TOKEN=<token> \
+  punch-jira -- uvx mcp-atlassian
 ```
 
-After registration, verify with:
+**Cursor:**
+
+1. Read `~/.cursor/mcp.json` → parse → add `punch-gitlab` and `punch-jira` with actual values → write back
+2. Skip if already exists under keys like `Confluence`, `GitLab`, `jira`, `atlassian`
+
+**Step 3 — Verify connection (REST API for GitLab, MCP for Jira)**
 
 ```bash
-claude mcp list
+curl -s --header "PRIVATE-TOKEN: <token>" "<url>/api/v4/user"
 ```
 
-Tell user to restart Claude Code (`/exit` → re-launch `claude`) for MCP servers to activate.
-
-**Why `--scope user`?** User scope stores in `~/.claude.json` and is available across ALL projects. Local scope (default) only works in the current project.
+If returns valid user JSON → GitLab is ready regardless of MCP status.
 
 ---
 
-**Path B — Cursor (direct file write)**
-
-1. Read existing `~/.cursor/mcp.json` (ignore error if not exists)
-2. Parse JSON (or start with `{ "mcpServers": {} }`)
-3. Add missing servers with **actual values**:
-
-GitLab:
-
-```json
-{
-  "punch-gitlab": {
-    "command": "uvx",
-    "args": ["mcp-gitlab"],
-    "env": {
-      "GITLAB_URL": "<collected-url>",
-      "GITLAB_TOKEN": "<collected-token>"
-    }
-  }
-}
-```
-
-Jira (check if it already exists under keys like `Confluence`, `jira`, `atlassian`):
-
-```json
-{
-  "punch-jira": {
-    "command": "uvx",
-    "args": ["mcp-atlassian"],
-    "env": {
-      "JIRA_URL": "<collected-url>",
-      "JIRA_PERSONAL_TOKEN": "<collected-token>"
-    }
-  }
-}
-```
-
-4. Write updated JSON back
-5. Tell user to reload: `Cmd+Shift+P → "Reload Window"`
-
----
-
-**IMPORTANT RULES (both paths):**
+**IMPORTANT RULES:**
+- **ALWAYS** save to `~/.punch/credentials.json` first — this enables REST API fallback
 - **NEVER** use `${ENV_VAR}` placeholders — always use **actual values**
-- NEVER overwrite existing servers (check before adding)
-- NEVER remove other MCP servers from the config
-- NEVER use `npx` — always use `uvx` for local processes
+- NEVER overwrite existing MCP servers (check before adding)
+- NEVER use `npx` — always use `uvx` for MCP servers
+- MCP registration failure is NOT a setup failure — REST API is equally valid
 - Server keys are prefixed `punch-` to avoid collisions
-- For Cursor: ALWAYS use `Read` tool to get current file content first
 
 #### 2e: Show Result
 

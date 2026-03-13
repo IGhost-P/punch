@@ -20,41 +20,38 @@ The main command. Reads GitLab activity and proposes **three types of Jira updat
 
 ---
 
-## Pre-flight: Tool Detection (Multi-Layer)
+## Pre-flight: Tool Detection
 
-**Punch is tool-agnostic.** It uses whatever GitLab/Jira tools are already available — from IDE plugins, Claude Code MCP, Cursor MCP, or any source.
+**Punch is tool-agnostic.** It uses whatever GitLab/Jira tools are available. MCP first, REST API fallback for GitLab. **Never use local `git log`.**
 
-### Layer 1 — Direct Tool Call (highest confidence)
+### GitLab — Detection Order
 
-Actually call a read-only tool. If it returns data → `[✓] ready`.
+| Priority | Method | How |
+|----------|--------|-----|
+| 1st | MCP tools | Call `list_projects`, `get_project` via `mcp__*gitlab*` or `user-*gitlab*` |
+| 2nd | **REST API** | Read `~/.punch/credentials.json` → `curl -H "PRIVATE-TOKEN: <token>" "<url>/api/v4/..."` |
+| 3rd | Stored credentials | Read token from `~/.cursor/mcp.json` or `~/.claude.json` GitLab env entries |
 
-**GitLab** — try tools in this order:
-1. `mcp__gitlab__*` or `mcp__punch-gitlab__*` (Claude Code MCP)
-2. `user-*gitlab*` (Cursor/IDE MCP)
-3. Any tool that can list commits, list projects, or get a user
+**REST API is a first-class method, not a last resort.** MCP servers frequently error due to process spawning issues. The REST API is 100% reliable.
 
-**Jira** — try tools in this order:
-1. `mcp__jira__*` or `mcp__punch-jira__*` (Claude Code MCP)
-2. `user-Confluence-jira_*` or `user-*jira*` (Cursor/IDE MCP)
-3. Any tool named `jira_search`, `jira_add_worklog`, etc.
+GitLab REST API endpoints used by sync:
 
-A tool that exists but returns an auth error → `[✗] auth failed`.
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v4/user` | Verify connection, get username |
+| `GET /api/v4/projects?membership=true` | List user's projects |
+| `GET /api/v4/projects/:id/repository/commits?author=:user&since=:date` | Commits by date |
+| `GET /api/v4/projects/:id/merge_requests?author_username=:user&updated_after=:date` | MRs by date |
+| `GET /api/v4/projects/:id/events?action=commented&after=:date` | Review/comment events |
 
-### Layer 2 — Config File Scan (if Layer 1 found nothing)
+### Jira — Detection Order
 
-**Read these MCP config files** (use `Read` tool, ignore errors for missing files):
+| Priority | Method | How |
+|----------|--------|-----|
+| 1st | MCP tools | Call `jira_get_all_projects`, `jira_search` via `mcp__*jira*` or `user-*jira*` |
+| 2nd | Stored credentials | Read `~/.punch/credentials.json` for future REST API support |
 
-| File                   | What to look for                                                        |
-|------------------------|-------------------------------------------------------------------------|
-| `~/.cursor/mcp.json`  | Keys containing `gitlab`/`GitLab` → GitLab; `jira`/`atlassian`/`Confluence` → Jira |
-| `~/.claude/mcp.json`  | Same patterns                                                           |
-| `~/.claude.json`      | Under `projects.*.mcpServers` → project-scoped registrations            |
-
-If found in config but tool call failed → `[~] registered, not connected`.
-
-### Layer 3 — Not Found
-
-Neither Layer 1 nor 2 → `[-] missing`.
+Jira stays MCP-only for now (write operations like `jira_add_worklog` need MCP).
 
 ### Display
 
@@ -64,7 +61,7 @@ Neither Layer 1 nor 2 → `[-] missing`.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Connections:
-  ├─ GitLab   [✓] ready     via Cursor plugin
+  ├─ GitLab   [✓] ready     via REST API (@swYang)
   └─ Jira     [✓] ready     via Confluence MCP
 ```
 
@@ -73,8 +70,8 @@ Neither Layer 1 nor 2 → `[-] missing`.
 | Status                   | Display & Action                                                  |
 |--------------------------|-------------------------------------------------------------------|
 | `[✓]` ready              | Proceed normally                                                  |
-| `[~]` registered         | Ask user to reload Cursor/restart CLI, then re-detect Layer 1     |
-| `[✗]` auth failed        | Show error, suggest token check                                   |
+| `[~]` registered         | Try REST API fallback for GitLab. Ask reload only for Jira.       |
+| `[✗]` auth failed        | Show error, suggest token check, offer `/punch:setup`             |
 | `[-]` missing            | Guide to `/punch:setup`                                           |
 | GitLab OK, Jira missing  | Offer dry-run mode (preview without writing to Jira)              |
 | Both missing             | Guide to `/punch:setup`                                           |
