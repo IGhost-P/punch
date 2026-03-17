@@ -7,6 +7,5 @@
   },
   "license": "MIT",
   "keywords": ["gitlab", "jira", "worklog", "time-tracking", "productivity"],
-  "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
+  "skills": "./skills/"
 }
