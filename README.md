@@ -66,7 +66,7 @@ One preview. Three types of updates. Full control.
 **Step 1 — Install the plugin** (in your terminal):
 
 ```bash
-claude plugin marketplace add your-org/punch
+claude plugin marketplace add IGhost-P/punch
 claude plugin install punch@punch
 ```
 

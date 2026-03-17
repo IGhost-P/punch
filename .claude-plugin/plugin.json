@@ -3,7 +3,7 @@
   "version": "0.10.0",
   "description": "Clock in your dev work. Reads GitLab commits, MRs, code reviews, and issues — then logs time to Jira with your approval.",
   "author": {
-    "name": "swyang"
+    "name": "IGhost-P"
   },
   "license": "MIT",
   "keywords": ["gitlab", "jira", "worklog", "time-tracking", "productivity"],
